@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenLCM Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="header">
+  <div class="header-logo">Open<span>LCM</span></div>
+  <div class="header-badge">Live Dashboard</div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim)">
+    <span class="status-dot disconnected" id="status-dot"></span>
+    <span id="status-label">Connecting…</span>
+  </div>
+  <div class="header-meta">
+    <div class="header-stat">
+      <span class="header-stat-label">Compressions</span>
+      <span class="header-stat-value" id="si-compressions">—</span>
+    </div>
+    <div class="header-stat">
+      <span class="header-stat-label">DAG Nodes</span>
+      <span class="header-stat-value" id="si-nodes">—</span>
+    </div>
+    <div class="header-stat">
+      <span class="header-stat-label">Messages</span>
+      <span class="header-stat-value" id="si-messages">—</span>
+    </div>
+    <div class="header-stat">
+      <span class="header-stat-label">Status</span>
+      <span class="header-stat-value" id="si-status" style="color:var(--green)">idle</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main layout ── -->
+<main class="layout">
+
+  <!-- 1. Token Pressure Gauge -->
+  <div class="panel panel-gauge">
+    <div class="panel-header"><span class="icon">⬡</span> Token Pressure</div>
+    <div class="panel-body">
+      <div class="gauge-wrap">
+        <svg class="gauge-svg" viewBox="0 0 200 110">
+          <!-- Half-circle arc from 180° to 0° -->
+          <path class="gauge-track"
+            d="M 16,100 A 84,84 0 0 1 184,100"
+            stroke-dasharray="264 264" />
+          <path id="gauge-fill" class="gauge-fill"
+            d="M 16,100 A 84,84 0 0 1 184,100"
+            stroke-dasharray="0 264"
+            stroke="var(--green)" />
+          <text x="100" y="90" text-anchor="middle" fill="var(--text)"
+            font-size="22" font-weight="700" font-family="JetBrains Mono,monospace" id="gauge-pct">0%</text>
+        </svg>
+        <div class="gauge-stats">
+          <div class="gauge-stat">
+            <div class="gauge-stat-val" id="gauge-prompt" style="color:var(--text)">—</div>
+            <div class="gauge-stat-label">Prompt tokens</div>
+          </div>
+          <div class="gauge-stat">
+            <div class="gauge-stat-val" id="gauge-threshold" style="color:var(--yellow)">—</div>
+            <div class="gauge-stat-label">Threshold</div>
+          </div>
+          <div class="gauge-stat">
+            <div class="gauge-stat-val" id="gauge-max" style="color:var(--text-dim)">—</div>
+            <div class="gauge-stat-label">Context max</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. DAG Viewer -->
+  <div class="panel panel-dag">
+    <div class="panel-header"><span class="icon">◈</span> Summary DAG</div>
+    <div class="panel-body" style="padding:8px">
+      <div class="dag-container" id="dag-container">
+        <div class="dag-empty">Waiting for DAG data…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Session Sidebar -->
+  <div class="panel panel-sidebar sidebar">
+    <div class="panel-header"><span class="icon">◎</span> Session</div>
+    <div class="panel-body">
+      <div class="session-info">
+        <div class="session-row">
+          <span class="session-label">Session ID</span>
+          <span class="session-value" id="si-session">—</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">Platform</span>
+          <span class="session-value" id="si-platform">—</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">Compress threshold</span>
+          <span class="session-value" id="si-threshold">75%</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">Fresh tail</span>
+          <span class="session-value" id="si-tail">64</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">Summary model</span>
+          <span class="session-value" id="si-model">—</span>
+        </div>
+        <div class="session-row">
+          <span class="session-label">Database</span>
+          <span class="session-value" id="si-db">—</span>
+        </div>
+      </div>
+
+      <div class="session-divider"></div>
+
+      <!-- Session list -->
+      <div style="font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sessions</div>
+      <div class="sessions-list" id="sessions-list"></div>
+
+      <div class="session-divider"></div>
+
+      <!-- Search -->
+      <div class="search-box">
+        <div style="font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Search history</div>
+        <input class="search-input" id="search-input" type="text" placeholder="Search messages…" autocomplete="off" />
+        <div class="search-results" id="search-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Message Feed -->
+  <div class="panel panel-feed">
+    <div class="panel-header"><span class="icon">≡</span> Message Feed <span id="si-msg-count" style="margin-left:auto;font-weight:400;color:var(--text-dim)"></span></div>
+    <div class="panel-body" style="padding:4px">
+      <div class="feed-container" id="feed-container">
+        <div style="color:var(--text-dim);text-align:center;padding:40px 0">Waiting for messages…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Compaction Timeline -->
+  <div class="panel panel-timeline">
+    <div class="panel-header"><span class="icon">⏱</span> Event Timeline</div>
+    <div class="panel-body" style="padding:4px">
+      <div class="timeline-container" id="timeline-container">
+        <div class="timeline-empty">Waiting for events…</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Node preview tooltip -->
+<div class="node-preview" id="node-preview"></div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>
