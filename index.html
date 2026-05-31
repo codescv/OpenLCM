@@ -18,13 +18,13 @@
       --red:       #F87171; --cyan:#22D3EE;
       --mono:      'JetBrains Mono','SF Mono','Fira Code',monospace;
       --easing:    cubic-bezier(0.16,1,0.3,1);
-      /* Demo panel — exact losslesscontext.ai palette */
-      --d-bg:      #0d1117; --d-surface:#161b22; --d-border:#30363d;
-      --d-text:    #e6edf3; --d-muted:#7d8590; --d-dim:#484f58;
-      --d-user:    #388bfd; --d-asst:#3fb950; --d-tool:#d2a8ff;
-      --d-sum:     #f0883e; --d-sum-d1:#ff7b72;
-      --d-fresh:   #56d364; --d-budget:#388bfd;
-      --d-warn:    #f0883e; --d-over:#ff7b72;
+      /* Demo panel — unified with main site palette */
+      --d-bg:      #0C0C0C; --d-surface:#141414; --d-border:rgba(255,255,255,0.10);
+      --d-text:    #E2E8F0; --d-muted:#9CA3AF; --d-dim:#4B5563;
+      --d-user:    #60A5FA; --d-asst:#4ADE80; --d-tool:#C084FC;
+      --d-sum:     #FBBF24; --d-sum-d1:#F87171;
+      --d-fresh:   #4ADE80; --d-budget:#60A5FA;
+      --d-warn:    #FBBF24; --d-over:#F87171;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html{scroll-behavior:smooth}
@@ -70,10 +70,20 @@
     .btn-green:hover{box-shadow:0 0 20px var(--green-glow);transform:translateY(-1px)}
     .btn-ghost{background:transparent;color:var(--fg-muted);border:1px solid var(--border-2)}
     .btn-ghost:hover{color:var(--fg);border-color:var(--fg-dim)}
-    .hero-install{margin-top:24px;display:flex;align-items:center;background:var(--bg-2);border:1px solid var(--border);width:fit-content}
-    .hero-install-prompt{padding:10px 14px;color:var(--green);font-size:13px;border-right:1px solid var(--border)}
-    .hero-install-cmd{padding:10px 16px;color:var(--fg-muted);font-size:13px}
-    .cmd-pkg{color:var(--fg)}
+    /* Tabbed install widget */
+    .install-widget{margin-top:28px;background:var(--bg-2);border:1px solid var(--border);width:fit-content;min-width:340px}
+    .install-tabs{display:flex;border-bottom:1px solid var(--border)}
+    .install-tab{padding:8px 16px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--fg-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+    .install-tab:hover{color:var(--fg)}
+    .install-tab.active{color:var(--green);border-bottom-color:var(--green)}
+    .install-cmd-row{display:flex;align-items:center;padding:12px 14px;gap:10px}
+    .install-prompt{color:var(--fg-dim);font-size:13px;flex-shrink:0}
+    .install-cmd-text{color:var(--fg-muted);font-size:13px;flex:1}
+    .install-cmd-text .pkg{color:var(--fg);font-weight:600}
+    .install-copy{background:none;border:1px solid var(--border);color:var(--fg-dim);padding:4px 8px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s;flex-shrink:0}
+    .install-copy:hover{color:var(--green);border-color:var(--green);background:var(--green-dim)}
+    .install-copy.copied{color:var(--green);border-color:var(--green);background:var(--green-dim)}
+    .cmd-pkg{color:var(--fg);font-weight:600}
 
     /* Terminal widget */
     .term-window{background:var(--bg-2);border:1px solid var(--border);overflow:hidden}
@@ -198,13 +208,14 @@
        Right: CONTEXT WINDOW panel is sticky
     ════════════════════════════════════════════════════════════════ */
 
-    .demo-wrap{border-top:1px solid var(--border);background:var(--d-bg)}
+    .demo-wrap{border-top:1px solid var(--border);background:var(--bg)}
 
     /* Chapter dots progress indicator */
     .demo-chapter-dots{
       display:flex;gap:6px;padding:20px 28px;
       position:sticky;top:48px;z-index:50;
-      background:var(--d-bg);border-bottom:1px solid var(--d-border);
+      background:rgba(12,12,12,.97);border-bottom:1px solid var(--border);
+      backdrop-filter:blur(12px);
       align-items:center;
     }
     .demo-dot{width:8px;height:8px;border-radius:50%;background:var(--d-dim);transition:background .3s,transform .3s;cursor:pointer}
@@ -278,15 +289,16 @@
     .chapter-sub-item{font-size:12px;color:var(--d-dim);display:flex;align-items:center;gap:6px}
     .chapter-sub-item::before{content:'○';color:var(--d-dim);flex-shrink:0}
 
-    /* Right: sticky context window panel */
+    /* Right: sticky context window panel — centered vertically */
     .demo-panel-wrap{
       flex:1;
       position:sticky;
       top:calc(48px + 48px); /* nav + dots bar */
       height:calc(100vh - 48px - 48px);
       overflow-y:auto;
-      padding:20px 28px 20px 0;
+      padding:24px 28px 24px 0;
       display:flex;flex-direction:column;gap:16px;
+      justify-content:center;
     }
 
     /* ── CONTEXT WINDOW panel ──────────────────────────────────────── */
@@ -594,9 +606,17 @@
           <a href="#quickstart" class="btn btn-green"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>get started</a>
           <a href="#demo" class="btn btn-ghost"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>see the demo</a>
         </div>
-        <div class="hero-install reveal r4">
-          <div class="hero-install-prompt">$</div>
-          <div class="hero-install-cmd">pip install <span class="cmd-pkg">openlcm</span></div>
+        <div class="install-widget reveal r4" id="hero-install">
+          <div class="install-tabs">
+            <button class="install-tab active" onclick="switchTab('hero','pip',this)">pip</button>
+            <button class="install-tab" onclick="switchTab('hero','uv',this)">uv</button>
+            <button class="install-tab" onclick="switchTab('hero','poetry',this)">poetry</button>
+          </div>
+          <div class="install-cmd-row">
+            <span class="install-prompt">$</span>
+            <span class="install-cmd-text" id="hero-cmd">pip install <span class="pkg">openlcm</span></span>
+            <button class="install-copy" onclick="copyCmd('hero-cmd',this)" title="Copy">copy</button>
+          </div>
         </div>
       </div>
       <div class="reveal r2">
@@ -1097,7 +1117,7 @@
       <h2 class="cli-title">Up and running<br/>in 5 minutes.</h2>
     </div>
     <div class="qs-grid reveal">
-      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 01</div><div class="qs-title">install</div></div><div class="qs-code"><span class="cs-cmt"># all adapters + providers included</span><br/><span class="cs-kw">$</span> pip install openlcm<br/><br/><span class="cs-cmt"># LangGraph, AutoGen, CrewAI, ADK,</span><br/><span class="cs-cmt"># LlamaIndex, Haystack, OpenAI,</span><br/><span class="cs-cmt"># Anthropic, Gemini — all in one</span></div></div>
+      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 01</div><div class="qs-title">install</div></div><div style="padding:14px 16px"><div class="install-widget" id="qs-install" style="min-width:0;width:100%"><div class="install-tabs"><button class="install-tab active" onclick="switchTab('qs','pip',this)">pip</button><button class="install-tab" onclick="switchTab('qs','uv',this)">uv</button><button class="install-tab" onclick="switchTab('qs','poetry',this)">poetry</button></div><div class="install-cmd-row"><span class="install-prompt">$</span><span class="install-cmd-text" id="qs-cmd">pip install <span class="pkg">openlcm</span></span><button class="install-copy" onclick="copyCmd('qs-cmd',this)">copy</button></div></div><div style="font-size:11px;color:var(--fg-dim);margin-top:10px">All adapters + providers included — no extras needed.</div></div></div>
       <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 02</div><div class="qs-title">create engine</div></div><div class="qs-code"><span class="cs-kw">from</span> <span class="cs-imp">openlcm</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMEngine</span><br/><span class="cs-kw">from</span> <span class="cs-imp">openlcm.backends.anthropic</span> <span class="cs-kw">import</span> <span class="cs-cls">AnthropicBackend</span><br/><br/>engine = <span class="cs-cls">LCMEngine</span>(<br/>&nbsp;&nbsp;backend=<span class="cs-cls">AnthropicBackend</span>(<br/>&nbsp;&nbsp;&nbsp;&nbsp;model=<span class="cs-str">"claude-haiku-4-5-20251001"</span>),<br/>&nbsp;&nbsp;db_path=<span class="cs-str">"~/.openlcm/myapp.db"</span>,<br/>)<br/>engine.bind_session(<span class="cs-str">"s-1"</span>, context_length=<span class="cs-fn">200_000</span>)</div></div>
       <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 03</div><div class="qs-title">compress each turn</div></div><div class="qs-code"><span class="cs-kw">async def</span> <span class="cs-fn">agent_turn</span>(messages):<br/>&nbsp;&nbsp;<span class="cs-cmt"># LCM fires automatically when needed</span><br/>&nbsp;&nbsp;messages = <span class="cs-kw">await</span> engine.compress(messages)<br/>&nbsp;&nbsp;response = <span class="cs-kw">await</span> llm.chat(messages)<br/>&nbsp;&nbsp;messages.append(response)<br/>&nbsp;&nbsp;engine.update_from_response(response.usage)<br/>&nbsp;&nbsp;<span class="cs-kw">return</span> messages</div></div>
       <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 04</div><div class="qs-title">use the CLI</div></div><div class="qs-code"><span class="cs-cmt"># live dashboard at localhost:7842</span><br/><span class="cs-kw">$</span> openlcm viz<br/><br/><span class="cs-cmt"># search conversation history</span><br/><span class="cs-kw">$</span> openlcm grep <span class="cs-str">"security constraints"</span><br/><br/><span class="cs-cmt"># session stats + export</span><br/><span class="cs-kw">$</span> openlcm status<br/><span class="cs-kw">$</span> openlcm export session-1 <span class="cs-str">-o</span> convo.json</div></div>
@@ -1116,7 +1136,18 @@
         <a href="#quickstart" class="btn btn-green" style="font-size:14px;padding:13px 26px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>get started</a>
         <a href="https://github.com/akshay-eng/OpenLCM" class="btn btn-ghost" style="font-size:14px;padding:13px 26px" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>github</a>
       </div>
-      <div class="cta-install"><div class="ci-prompt">$</div><div class="ci-cmd">pip install <span class="pkg">openlcm</span></div></div>
+      <div class="install-widget" id="cta-install" style="margin:28px auto 0;max-width:380px">
+        <div class="install-tabs">
+          <button class="install-tab active" onclick="switchTab('cta','pip',this)">pip</button>
+          <button class="install-tab" onclick="switchTab('cta','uv',this)">uv</button>
+          <button class="install-tab" onclick="switchTab('cta','poetry',this)">poetry</button>
+        </div>
+        <div class="install-cmd-row">
+          <span class="install-prompt">$</span>
+          <span class="install-cmd-text" id="cta-cmd">pip install <span class="pkg">openlcm</span></span>
+          <button class="install-copy" onclick="copyCmd('cta-cmd',this)" title="Copy">copy</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -1137,6 +1168,36 @@
 </footer>
 
 <script>
+// ── Install widget ────────────────────────────────────────────────────────
+const _CMDS = {
+  pip:    'pip install <span class="pkg">openlcm</span>',
+  uv:     'uv add <span class="pkg">openlcm</span>',
+  poetry: 'poetry add <span class="pkg">openlcm</span>',
+};
+function switchTab(widgetId, tool, btn) {
+  const cmdEl = document.getElementById(widgetId + '-cmd');
+  if (cmdEl) cmdEl.innerHTML = _CMDS[tool];
+  const widget = document.getElementById(widgetId + '-install') || btn.closest('.install-widget');
+  if (widget) widget.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+}
+function copyCmd(cmdId, btn) {
+  const el = document.getElementById(cmdId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    const r = document.createRange(); r.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(r);
+    document.execCommand('copy');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.textContent = 'copy'; }, 2000);
+  });
+}
+
 // ── Viz mockup live animation ─────────────────────────────────────────────
 (function(){
   const steps = [

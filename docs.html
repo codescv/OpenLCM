@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenLCM — Documentation</title>
+  <meta name="description" content="Complete documentation for OpenLCM — framework-agnostic Lossless Context Management SDK." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0C0C0C; --bg-2:#141414; --bg-3:#1C1C1C; --bg-4:#242424;
+      --border:    rgba(255,255,255,0.07); --border-2:rgba(255,255,255,0.12);
+      --fg:        #E2E8F0; --fg-muted:#9CA3AF; --fg-dim:#4B5563;
+      --green:     #4ADE80; --green-dim:rgba(74,222,128,0.12); --green-glow:rgba(74,222,128,0.2);
+      --amber:     #FBBF24; --blue:#60A5FA; --blue-dim:rgba(96,165,250,0.1);
+      --purple:    #C084FC; --purple-dim:rgba(192,132,252,0.1);
+      --red:       #F87171; --cyan:#22D3EE;
+      --mono:      'JetBrains Mono','SF Mono','Fira Code',monospace;
+      --easing:    cubic-bezier(0.16,1,0.3,1);
+      --sidebar-w: 240px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:var(--mono);background:var(--bg);color:var(--fg);font-size:14px;line-height:1.6;display:flex;flex-direction:column;min-height:100vh}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);pointer-events:none;z-index:9999}
+    #scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:1001;background:var(--green);box-shadow:0 0 8px var(--green);width:0;transition:width .1s linear}
+
+    /* NAV */
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,12,12,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+    .nav-inner{max-width:1280px;margin:0 auto;padding:0 28px;display:flex;align-items:center;height:48px}
+    .nav-prompt{color:var(--green);font-weight:600;font-size:13px;margin-right:16px;white-space:nowrap;text-decoration:none}
+    .nav-path{color:var(--fg-muted);font-size:12px}
+    .nav-links{display:flex;gap:0;list-style:none;margin-left:auto}
+    .nav-links a{color:var(--fg-dim);text-decoration:none;font-size:12px;padding:0 14px;height:48px;display:flex;align-items:center;border-left:1px solid var(--border);transition:color .15s,background .15s}
+    .nav-links a:hover{color:var(--fg);background:var(--bg-2)}
+    .nav-links .nav-cta{color:var(--bg);background:var(--green);font-weight:700}
+    .nav-links .nav-cta:hover{opacity:.85}
+    .nav-links .nav-active{color:var(--green)}
+    @media(max-width:680px){.nav-links{display:none}}
+
+    /* LAYOUT */
+    .doc-layout{display:flex;max-width:1280px;margin:0 auto;width:100%;flex:1}
+
+    /* SIDEBAR */
+    .doc-sidebar{
+      width:var(--sidebar-w);min-width:var(--sidebar-w);
+      position:sticky;top:48px;height:calc(100vh - 48px);
+      overflow-y:auto;border-right:1px solid var(--border);
+      padding:24px 0 48px;flex-shrink:0;
+    }
+    .doc-sidebar::-webkit-scrollbar{width:3px}
+    .doc-sidebar::-webkit-scrollbar-thumb{background:var(--bg-4)}
+    .sb-group{margin-bottom:24px}
+    .sb-group-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--fg-dim);padding:0 20px;margin-bottom:8px;display:block}
+    .sb-link{display:flex;align-items:center;gap:8px;padding:6px 20px;font-size:12px;color:var(--fg-muted);text-decoration:none;transition:color .15s,background .15s;border-left:2px solid transparent}
+    .sb-link:hover{color:var(--fg);background:var(--bg-2)}
+    .sb-link.active{color:var(--green);border-left-color:var(--green);background:var(--green-dim)}
+    .sb-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:.5}
+    @media(max-width:900px){.doc-sidebar{display:none}}
+
+    /* MAIN CONTENT */
+    .doc-main{flex:1;min-width:0;padding:48px 56px 120px;max-width:860px}
+    @media(max-width:900px){.doc-main{padding:32px 20px 80px}}
+
+    /* SECTION */
+    .doc-section{margin-bottom:72px;scroll-margin-top:72px}
+    .doc-section+.doc-section{border-top:1px solid var(--border);padding-top:72px}
+
+    /* HEADINGS */
+    .sec-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--fg-dim);margin-bottom:16px;display:block}
+    .sec-label::before{content:'# '}
+    h2.sec-title{font-size:clamp(22px,3vw,34px);font-weight:700;line-height:1.2;letter-spacing:-.5px;margin-bottom:12px}
+    h3.sub-title{font-size:18px;font-weight:700;margin:40px 0 12px;color:var(--fg)}
+    h3.sub-title::before{content:'## ';color:var(--fg-dim);font-weight:400}
+    h4.sub-sub{font-size:14px;font-weight:700;margin:28px 0 8px;color:var(--fg-muted)}
+    .sec-lead{font-size:13px;color:var(--fg-muted);line-height:1.85;max-width:620px;margin-bottom:28px}
+    p{font-size:13px;color:var(--fg-muted);line-height:1.85;margin-bottom:12px}
+    strong{color:var(--fg);font-weight:600}
+    a{color:var(--green);text-decoration:none}
+    a:hover{text-decoration:underline}
+
+    /* INLINE CODE */
+    code{background:var(--bg-3);color:var(--cyan);padding:1px 6px;font-family:var(--mono);font-size:.88em;border:1px solid var(--border)}
+
+    /* CODE BLOCKS */
+    .code-block{background:var(--bg-2);border:1px solid var(--border);overflow:hidden;margin:16px 0 24px}
+    .cb-head{background:var(--bg-3);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .cb-title{font-size:11px;color:var(--fg-dim)}
+    .cb-lang{font-size:10px;font-weight:700;color:var(--purple);padding:1px 8px;border:1px solid rgba(192,132,252,.2)}
+    .cb-body{padding:16px 20px;font-size:12px;line-height:1.85;overflow-x:auto;white-space:pre}
+    /* token colours */
+    .kw{color:var(--purple)} .imp{color:var(--blue)} .cls{color:var(--amber)}
+    .str{color:var(--green)} .cmt{color:var(--fg-dim)} .fn{color:var(--cyan)}
+    .num{color:var(--cyan)} .op{color:var(--fg-muted)} .self{color:var(--red)}
+    .dec{color:var(--amber)}
+
+    /* CALLOUT */
+    .callout{padding:14px 18px;margin:20px 0;border-left:3px solid;font-size:12px;line-height:1.8}
+    .callout.info{border-color:var(--blue);background:var(--blue-dim);color:var(--fg-muted)}
+    .callout.tip{border-color:var(--green);background:var(--green-dim);color:var(--fg-muted)}
+    .callout.warn{border-color:var(--amber);background:rgba(251,191,36,.06);color:var(--fg-muted)}
+    .callout strong{display:block;margin-bottom:4px}
+
+    /* PARAM TABLE */
+    .param-table{width:100%;border-collapse:collapse;font-size:12px;margin:16px 0 24px}
+    .param-table th{background:var(--bg-3);padding:8px 14px;text-align:left;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg-dim);border:1px solid var(--border)}
+    .param-table td{padding:9px 14px;border:1px solid var(--border);color:var(--fg-muted);vertical-align:top}
+    .param-table td:first-child{color:var(--cyan);font-weight:600;white-space:nowrap}
+    .param-table td:nth-child(2){color:var(--purple);font-size:11px;white-space:nowrap}
+    .param-table td:nth-child(3){color:var(--amber);font-size:11px}
+    .param-table tr:hover td{background:var(--bg-3)}
+
+    /* ADAPTER BADGE */
+    .fw-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1px solid;margin-bottom:20px}
+    .fw-lg{color:var(--green);border-color:var(--green);background:var(--green-dim)}
+    .fw-adk{color:var(--blue);border-color:var(--blue);background:var(--blue-dim)}
+    .fw-ag{color:var(--amber);border-color:var(--amber);background:rgba(251,191,36,.08)}
+    .fw-cr{color:var(--red);border-color:var(--red);background:rgba(248,113,113,.08)}
+    .fw-oa{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.08)}
+    .fw-an{color:var(--purple);border-color:var(--purple);background:var(--purple-dim)}
+    .fw-li{color:var(--amber);border-color:var(--amber);background:rgba(251,191,36,.08)}
+    .fw-hs{color:var(--fg-muted);border-color:var(--border-2);background:var(--bg-3)}
+    .fw-gm{color:var(--blue);border-color:var(--blue);background:var(--blue-dim)}
+
+    /* Tabbed install widget */
+    .install-widget{background:var(--bg-2);border:1px solid var(--border);width:fit-content;min-width:320px;margin:16px 0}
+    .install-tabs{display:flex;border-bottom:1px solid var(--border)}
+    .install-tab{padding:7px 14px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--fg-dim);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+    .install-tab:hover{color:var(--fg)}
+    .install-tab.active{color:var(--green);border-bottom-color:var(--green)}
+    .install-cmd-row{display:flex;align-items:center;padding:11px 14px;gap:10px}
+    .install-prompt{color:var(--fg-dim);font-size:13px;flex-shrink:0}
+    .install-cmd-text{color:var(--fg-muted);font-size:13px;flex:1}
+    .install-cmd-text .pkg{color:var(--fg);font-weight:600}
+    .install-copy{background:none;border:1px solid var(--border);color:var(--fg-dim);padding:3px 8px;font-family:var(--mono);font-size:11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s;flex-shrink:0}
+    .install-copy:hover,.install-copy.copied{color:var(--green);border-color:var(--green);background:var(--green-dim)}
+
+    /* STEP LIST */
+    .step-list{display:flex;flex-direction:column;gap:16px;margin:20px 0}
+    .step-li{display:flex;gap:14px}
+    .step-num{width:22px;height:22px;min-width:22px;border:1px solid var(--border-2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--green);font-weight:700;flex-shrink:0;margin-top:3px}
+    .step-li p{margin:0}
+
+    /* TAG */
+    .tag{display:inline-block;background:var(--green-dim);color:var(--green);font-size:10px;padding:2px 8px;border:1px solid rgba(74,222,128,.2);margin:2px}
+
+    /* TOC DIVIDER */
+    .toc-hr{border:none;border-top:1px solid var(--border);margin:16px 20px}
+
+    footer{border-top:1px solid var(--border);padding:32px 0;background:var(--bg-2);margin-top:auto}
+    .footer-inner{max-width:1280px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+    .footer-logo{font-size:14px;font-weight:700}.fl-g{color:var(--green)}
+    .footer-links{display:flex;gap:20px}
+    .footer-links a{color:var(--fg-dim);text-decoration:none;font-size:12px;transition:color .15s}
+    .footer-links a:hover{color:var(--fg)}
+    .footer-copy{font-size:11px;color:var(--fg-dim)}
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--bg-4)}
+  </style>
+</head>
+<body>
+<div id="scroll-prog"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="nav-prompt">◆ openlcm</a>
+    <span class="nav-path" style="color:var(--fg-dim)">/ <span style="color:var(--green)">docs</span></span>
+    <ul class="nav-links">
+      <li><a href="index.html">home</a></li>
+      <li><a href="#install">install</a></li>
+      <li><a href="#config">config</a></li>
+      <li><a href="#adapters">adapters</a></li>
+      <li><a href="#viz">viz</a></li>
+      <li><a href="https://github.com/akshay-eng/OpenLCM" target="_blank" rel="noopener" class="nav-cta">github</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="doc-layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="doc-sidebar" id="sidebar">
+    <div class="sb-group">
+      <span class="sb-group-label">getting started</span>
+      <a href="#install"    class="sb-link active"><div class="sb-dot"></div>installation</a>
+      <a href="#quickstart" class="sb-link"><div class="sb-dot"></div>quick start</a>
+      <a href="#config"     class="sb-link"><div class="sb-dot"></div>configuration</a>
+      <a href="#concepts"   class="sb-link"><div class="sb-dot"></div>core concepts</a>
+    </div>
+    <hr class="toc-hr" />
+    <div class="sb-group">
+      <span class="sb-group-label">framework adapters</span>
+      <a href="#langgraph"  class="sb-link"><div class="sb-dot"></div>LangGraph</a>
+      <a href="#adk"        class="sb-link"><div class="sb-dot"></div>Google ADK</a>
+      <a href="#autogen"    class="sb-link"><div class="sb-dot"></div>AutoGen</a>
+      <a href="#crewai"     class="sb-link"><div class="sb-dot"></div>CrewAI</a>
+      <a href="#openai"     class="sb-link"><div class="sb-dot"></div>OpenAI SDK</a>
+      <a href="#anthropic"  class="sb-link"><div class="sb-dot"></div>Anthropic SDK</a>
+      <a href="#llamaindex" class="sb-link"><div class="sb-dot"></div>LlamaIndex</a>
+      <a href="#haystack"   class="sb-link"><div class="sb-dot"></div>Haystack</a>
+      <a href="#gemini"     class="sb-link"><div class="sb-dot"></div>Gemini (raw)</a>
+    </div>
+    <hr class="toc-hr" />
+    <div class="sb-group">
+      <span class="sb-group-label">reference</span>
+      <a href="#converters" class="sb-link"><div class="sb-dot"></div>message converters</a>
+      <a href="#viz"        class="sb-link"><div class="sb-dot"></div>dashboard</a>
+      <a href="#cli"        class="sb-link"><div class="sb-dot"></div>CLI reference</a>
+      <a href="#api"        class="sb-link"><div class="sb-dot"></div>API reference</a>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="doc-main">
+
+    <!-- ══════════════ INSTALLATION ══════════════ -->
+    <section class="doc-section" id="install">
+      <span class="sec-label">getting started</span>
+      <h2 class="sec-title">Installation</h2>
+      <p class="sec-lead">OpenLCM requires Python 3.10+ and SQLite (stdlib). One install — all adapters and providers included.</p>
+
+      <div class="install-widget" id="docs-install">
+        <div class="install-tabs">
+          <button class="install-tab active" onclick="switchTab('docs','pip',this)">pip</button>
+          <button class="install-tab" onclick="switchTab('docs','uv',this)">uv</button>
+          <button class="install-tab" onclick="switchTab('docs','poetry',this)">poetry</button>
+        </div>
+        <div class="install-cmd-row">
+          <span class="install-prompt">$</span>
+          <span class="install-cmd-text" id="docs-cmd">pip install <span class="pkg">openlcm</span></span>
+          <button class="install-copy" onclick="copyCmd('docs-cmd',this)">copy</button>
+        </div>
+      </div>
+
+      <p>All framework adapters (LangGraph, Google ADK, AutoGen, CrewAI, LlamaIndex, Haystack), all provider SDKs (OpenAI, Anthropic, Gemini), and the live dashboard are included. No extras needed.</p>
+
+      <div class="callout tip">
+        <strong>Tip — reuse your existing LLM client</strong>
+        Every adapter accepts an <code>llm=</code> kwarg so you can pass your existing model client instead of configuring a separate one for summarization. No extra API keys needed.
+      </div>
+    </section>
+
+    <!-- ══════════════ QUICK START ══════════════ -->
+    <section class="doc-section" id="quickstart">
+      <span class="sec-label">getting started</span>
+      <h2 class="sec-title">Quick Start</h2>
+      <p class="sec-lead">The minimal pattern: create an engine, bind a session, call <code>compress()</code> before each LLM turn.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">minimal example (any framework)</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+
+<span class="cmt"># 1. Create engine — any LiteLLM model string works</span>
+engine = <span class="cls">LCMEngine</span>(
+    model=<span class="str">"anthropic/claude-haiku-4-5-20251001"</span>,
+    db_path=<span class="str">"~/.openlcm/myapp.db"</span>,
+)
+
+<span class="cmt"># 2. Bind a session and declare context size</span>
+engine.bind_session(<span class="str">"session-001"</span>, context_length=<span class="num">200_000</span>)
+
+<span class="cmt"># 3. Call compress() before every LLM turn</span>
+<span class="kw">async def</span> <span class="fn">agent_turn</span>(messages: list[dict], user_input: str) -> str:
+    messages.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})
+
+    <span class="cmt"># LCM compresses automatically when threshold is exceeded</span>
+    messages = <span class="kw">await</span> engine.compress(messages)
+
+    response = <span class="kw">await</span> my_llm.chat(messages)          <span class="cmt"># your LLM call</span>
+    messages.append(response)
+
+    <span class="cmt"># Report token usage so LCM can track pressure</span>
+    engine.update_from_response(response.usage)
+    <span class="kw">return</span> response.content, messages
+
+asyncio.run(agent_turn([], <span class="str">"Hello!"</span>))</div>
+      </div>
+
+      <div class="callout info">
+        <strong>LCM internal format</strong>
+        <code>compress()</code> expects and returns a list of dicts: <code>{"role": "user"|"assistant"|"system"|"tool", "content": "string"}</code>. Tool calls are serialized as JSON in the content field. Use the framework message converters (see <a href="#converters">Message Converters</a>) to convert from framework-native types.
+      </div>
+    </section>
+
+    <!-- ══════════════ CONFIGURATION ══════════════ -->
+    <section class="doc-section" id="config">
+      <span class="sec-label">getting started</span>
+      <h2 class="sec-title">Configuration</h2>
+      <p class="sec-lead">All parameters can be set in code via <code>LCMConfig</code>, via environment variables, or via a <code>config.yaml</code> file.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">LCMConfig — all knobs</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">openlcm.core.config</span> <span class="kw">import</span> <span class="cls">LCMConfig</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+
+config = <span class="cls">LCMConfig</span>.from_env()  <span class="cmt"># starts from defaults + env overrides</span>
+
+<span class="cmt"># ── Compression trigger ────────────────────────────────────────────────────</span>
+config.context_threshold  = <span class="num">0.75</span>   <span class="cmt"># compress at 75% of context window (default)</span>
+                                       <span class="cmt"># range: 0.30 – 0.95</span>
+
+<span class="cmt"># ── Fresh tail ─────────────────────────────────────────────────────────────</span>
+config.fresh_tail_count   = <span class="num">64</span>     <span class="cmt"># protect last N messages from compression (default: 64)</span>
+                                       <span class="cmt"># set lower (e.g. 8) for tool-heavy agents</span>
+
+<span class="cmt"># ── Leaf chunk size ────────────────────────────────────────────────────────</span>
+config.leaf_chunk_tokens  = <span class="num">20_000</span> <span class="cmt"># tokens per D0 leaf summary (default: 20,000)</span>
+
+<span class="cmt"># ── DAG arc creation ───────────────────────────────────────────────────────</span>
+config.condensation_fanin = <span class="num">4</span>      <span class="cmt"># D0 nodes before creating a D1 arc (default: 4)</span>
+                                       <span class="cmt"># lower = arc nodes created sooner</span>
+
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"..."</span>, config=config)</div>
+      </div>
+
+      <h3 class="sub-title">Environment variables</h3>
+      <table class="param-table">
+        <thead><tr><th>Variable</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>LCM_CONTEXT_THRESHOLD</td><td>float</td><td>0.75</td><td>Compression trigger as fraction of context window</td></tr>
+          <tr><td>LCM_FRESH_TAIL_COUNT</td><td>int</td><td>64</td><td>Messages protected from compression at tail</td></tr>
+          <tr><td>LCM_LEAF_CHUNK_TOKENS</td><td>int</td><td>20000</td><td>Tokens per D0 leaf summary chunk</td></tr>
+          <tr><td>LCM_CONDENSATION_FANIN</td><td>int</td><td>4</td><td>D0 nodes required before D1 arc is created</td></tr>
+          <tr><td>LCM_DB_PATH</td><td>str</td><td>~/.openlcm/lcm.db</td><td>SQLite database path</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ CORE CONCEPTS ══════════════ -->
+    <section class="doc-section" id="concepts">
+      <span class="sec-label">getting started</span>
+      <h2 class="sec-title">Core Concepts</h2>
+
+      <h3 class="sub-title" style="margin-top:0">Two-layer architecture</h3>
+      <p>LCM has two independent stores that work together:</p>
+      <div class="step-list">
+        <div class="step-li"><div class="step-num">1</div><div><strong>Immutable Message Store</strong> — every message written verbatim to SQLite with a stable <code>store_id</code>. Never modified, never deleted. FTS5-indexed for full-text search.</div></div>
+        <div class="step-li"><div class="step-num">2</div><div><strong>Summary DAG</strong> — a directed acyclic graph of summary nodes. D0 leaf → D1 arc → D2 durable. Each node points back to the source message range it compresses.</div></div>
+      </div>
+
+      <h3 class="sub-title">DAG depth levels</h3>
+      <table class="param-table">
+        <thead><tr><th>Depth</th><th>Name</th><th>Created when</th></tr></thead>
+        <tbody>
+          <tr><td>D0</td><td>Leaf node</td><td>Context threshold exceeded; oldest messages outside fresh tail are summarized</td></tr>
+          <tr><td>D1</td><td>Session arc</td><td>condensation_fanin D0 nodes have accumulated</td></tr>
+          <tr><td>D2+</td><td>Durable history</td><td>condensation_fanin D1 nodes have accumulated (unbounded depth)</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-title">Active context formula</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">what the model sees each turn</span><span class="cb-lang">text</span></div>
+        <div class="cb-body">active_context = system_prompt
+                + highest_dag_node (D2 or D1 if no D2)
+                + recent_d0_nodes  (any D0 not yet condensed)
+                + fresh_tail       (last N raw messages, verbatim)</div>
+      </div>
+
+      <h3 class="sub-title">Sessions</h3>
+      <p>One SQLite DB file holds all sessions. <code>bind_session()</code> sets the active session and context window size. Multiple agents can share one DB with different session IDs.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">session management</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="cmt"># One DB, multiple sessions</span>
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"..."</span>, db_path=<span class="str">"shared.db"</span>)
+
+engine.bind_session(<span class="str">"user-alice"</span>, context_length=<span class="num">128_000</span>)
+engine.bind_session(<span class="str">"user-bob"</span>,   context_length=<span class="num">200_000</span>)
+
+<span class="cmt"># Get live stats for the current session</span>
+status = engine.get_status()
+<span class="cmt"># → {"store_messages": 47, "dag_nodes": 5, "compression_count": 3,</span>
+<span class="cmt">#    "last_prompt_tokens": 14200, ...}</span></div>
+      </div>
+    </section>
+
+    <!-- ══════════════ LANGGRAPH ══════════════ -->
+    <section class="doc-section" id="langgraph">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-lg">LangGraph</div>
+      <h2 class="sec-title">LangGraph</h2>
+      <p class="sec-lead">Two integration points: <code>LCMCheckpointer</code> (graph persistence) and <code>LangChainMessages</code> (explicit compression inside a node).</p>
+
+      <h3 class="sub-title" style="margin-top:0">Option A — LCMCheckpointer (recommended)</h3>
+      <p>Drop-in replacement for <code>MemorySaver</code>. LCM compresses checkpoint state automatically before each graph run.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">langgraph_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">langgraph.graph</span> <span class="kw">import</span> <span class="cls">StateGraph</span>, <span class="cls">START</span>, <span class="cls">END</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.langgraph</span> <span class="kw">import</span> <span class="cls">LCMCheckpointer</span>
+
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"anthropic/claude-haiku-4-5-20251001"</span>)
+engine.bind_session(<span class="str">"lg-session"</span>, context_length=<span class="num">200_000</span>)
+
+<span class="cmt"># Replace MemorySaver with LCMCheckpointer — no other changes needed</span>
+graph = <span class="cls">StateGraph</span>(<span class="cls">MyState</span>).compile(
+    checkpointer=<span class="cls">LCMCheckpointer</span>(engine)
+)
+
+<span class="cmt"># thread_id maps to session_id automatically</span>
+config = {<span class="str">"configurable"</span>: {<span class="str">"thread_id"</span>: <span class="str">"lg-session"</span>}}
+result = <span class="kw">await</span> graph.ainvoke({<span class="str">"messages"</span>: [...]}, config)</div>
+      </div>
+
+      <h3 class="sub-title">Option B — Manual compression inside a node</h3>
+      <p>Use <code>LangChainMessages</code> to convert messages, check pressure, and compress explicitly. Gives you full control over when compression fires.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">langgraph_manual.py — complete working example with tools</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">typing</span> <span class="kw">import</span> <span class="cls">Annotated</span>
+<span class="kw">from</span> <span class="imp">typing_extensions</span> <span class="kw">import</span> <span class="cls">TypedDict</span>
+<span class="kw">from</span> <span class="imp">langchain_google_genai</span> <span class="kw">import</span> <span class="cls">ChatGoogleGenerativeAI</span>
+<span class="kw">from</span> <span class="imp">langchain_core.messages</span> <span class="kw">import</span> <span class="cls">HumanMessage</span>, <span class="cls">SystemMessage</span>
+<span class="kw">from</span> <span class="imp">langchain_core.tools</span> <span class="kw">import</span> tool
+<span class="kw">from</span> <span class="imp">langgraph.graph</span> <span class="kw">import</span> <span class="cls">StateGraph</span>, <span class="cls">START</span>, <span class="cls">END</span>
+<span class="kw">from</span> <span class="imp">langgraph.graph.message</span> <span class="kw">import</span> add_messages
+<span class="kw">from</span> <span class="imp">langgraph.prebuilt</span> <span class="kw">import</span> <span class="cls">ToolNode</span>, tools_condition
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.core.config</span> <span class="kw">import</span> <span class="cls">LCMConfig</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.langchain</span> <span class="kw">import</span> <span class="cls">LangChainMessages</span>
+
+<span class="cmt"># ── Tools ─────────────────────────────────────────────────────────────────</span>
+<span class="dec">@tool</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: str) -> dict:
+    <span class="str">"""Get current weather for a city."""</span>
+    <span class="kw">return</span> {<span class="str">"city"</span>: city, <span class="str">"temp_c"</span>: <span class="num">22</span>, <span class="str">"condition"</span>: <span class="str">"Sunny"</span>}
+
+tools = [get_weather]
+
+<span class="cmt"># ── LLM + Engine ──────────────────────────────────────────────────────────</span>
+llm = <span class="cls">ChatGoogleGenerativeAI</span>(model=<span class="str">"gemini-2.0-flash"</span>)
+llm_with_tools = llm.bind_tools(tools)
+
+config = <span class="cls">LCMConfig</span>.from_env()
+config.context_threshold = <span class="num">0.60</span>
+config.fresh_tail_count  = <span class="num">8</span>
+
+engine = <span class="cls">LCMEngine</span>(summarize_fn=llm, config=config)
+engine.bind_session(<span class="str">"demo"</span>, context_length=<span class="num">6_000</span>)
+
+<span class="cmt"># ── State ─────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cls">State</span>(<span class="cls">TypedDict</span>):
+    messages: <span class="cls">Annotated</span>[list, add_messages]
+
+SYSTEM = <span class="cls">SystemMessage</span>(content=<span class="str">"You are a helpful assistant with weather tools."</span>)
+
+<span class="cmt"># ── Nodes ─────────────────────────────────────────────────────────────────</span>
+<span class="kw">async def</span> <span class="fn">chatbot</span>(state: <span class="cls">State</span>):
+    messages = state[<span class="str">"messages"</span>]
+    <span class="kw">if not</span> messages <span class="kw">or not</span> isinstance(messages[<span class="num">0</span>], <span class="cls">SystemMessage</span>):
+        messages = [SYSTEM] + list(messages)
+
+    <span class="cmt"># Convert to LCM format → compress if needed → convert back</span>
+    lcm_msgs = <span class="cls">LangChainMessages</span>.to_lcm(messages)
+    <span class="kw">if</span> engine.should_compress_preflight(lcm_msgs):
+        lcm_msgs = <span class="kw">await</span> engine.compress(lcm_msgs)
+        messages = <span class="cls">LangChainMessages</span>.from_lcm(lcm_msgs)
+
+    response = <span class="kw">await</span> llm_with_tools.ainvoke(messages)
+    <span class="kw">return</span> {<span class="str">"messages"</span>: [response]}
+
+tool_node = <span class="cls">ToolNode</span>(tools)
+
+<span class="cmt"># ── Graph ─────────────────────────────────────────────────────────────────</span>
+builder = <span class="cls">StateGraph</span>(<span class="cls">State</span>)
+builder.add_node(<span class="str">"chatbot"</span>, chatbot)
+builder.add_node(<span class="str">"tools"</span>,   tool_node)
+builder.add_edge(<span class="cls">START</span>, <span class="str">"chatbot"</span>)
+builder.add_conditional_edges(<span class="str">"chatbot"</span>, tools_condition)
+builder.add_edge(<span class="str">"tools"</span>, <span class="str">"chatbot"</span>)
+graph = builder.compile()
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    conversation = []
+    <span class="kw">while</span> <span class="num">True</span>:
+        user_input = input(<span class="str">"You: "</span>)
+        conversation.append(<span class="cls">HumanMessage</span>(content=user_input))
+        result = <span class="kw">await</span> graph.ainvoke({<span class="str">"messages"</span>: conversation})
+        conversation = result[<span class="str">"messages"</span>]
+        print(<span class="str">f"Agent: {conversation[-1].content}"</span>)
+
+asyncio.run(main())</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ GOOGLE ADK ══════════════ -->
+    <section class="doc-section" id="adk">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-adk">Google ADK</div>
+      <h2 class="sec-title">Google ADK</h2>
+      <p class="sec-lead">Two components work together: <code>LCMSessionService</code> persists every ADK event to SQLite, and <code>lcm_compress_callback</code> compresses context before each Gemini API call.</p>
+
+      <div class="callout info">
+        <strong>Setup</strong>
+        Set <code>GOOGLE_API_KEY</code> in your environment. Install with <code>pip install openlcm[google-adk]</code>.
+      </div>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">adk_agent.py — complete working example</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">google.adk.agents</span> <span class="kw">import</span> <span class="cls">LlmAgent</span>
+<span class="kw">from</span> <span class="imp">google.adk.runners</span> <span class="kw">import</span> <span class="cls">Runner</span>
+<span class="kw">from</span> <span class="imp">google.genai</span> <span class="kw">import</span> types
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.core.config</span> <span class="kw">import</span> <span class="cls">LCMConfig</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.google_adk</span> <span class="kw">import</span> <span class="cls">LCMSessionService</span>, lcm_compress_callback
+
+<span class="cmt"># ── Mock tools (no extra API keys) ────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: str) -> dict:
+    <span class="str">"""Get weather for a city. Args: city: City name."""</span>
+    <span class="kw">return</span> {<span class="str">"city"</span>: city, <span class="str">"temp_c"</span>: <span class="num">22</span>, <span class="str">"condition"</span>: <span class="str">"Sunny"</span>}
+
+<span class="kw">def</span> <span class="fn">get_stock_price</span>(ticker: str) -> dict:
+    <span class="str">"""Get stock price. Args: ticker: Stock symbol e.g. AAPL."""</span>
+    <span class="kw">return</span> {<span class="str">"ticker"</span>: ticker, <span class="str">"price"</span>: <span class="num">195.42</span>, <span class="str">"change_pct"</span>: <span class="num">1.2</span>}
+
+<span class="cmt"># ── LCM Engine ────────────────────────────────────────────────────────────</span>
+config = <span class="cls">LCMConfig</span>.from_env()
+config.context_threshold = <span class="num">0.60</span>
+config.fresh_tail_count  = <span class="num">8</span>
+
+engine = <span class="cls">LCMEngine</span>(
+    model=<span class="str">"gemini/gemini-2.0-flash"</span>,
+    config=config,
+    db_path=<span class="str">"adk_demo.db"</span>,
+)
+engine.bind_session(<span class="str">"adk-session"</span>, context_length=<span class="num">500_000</span>)
+
+<span class="cmt"># ── ADK Agent with LCM hooks ──────────────────────────────────────────────</span>
+agent = <span class="cls">LlmAgent</span>(
+    name=<span class="str">"research_assistant"</span>,
+    model=<span class="str">"gemini-2.0-flash"</span>,
+    instruction=<span class="str">"You are a research assistant. Use your tools proactively."</span>,
+    tools=[get_weather, get_stock_price],
+    before_model_callback=lcm_compress_callback(engine),  <span class="cmt"># compression hook</span>
+)
+
+session_service = <span class="cls">LCMSessionService</span>(engine)  <span class="cmt"># persistence + dashboard</span>
+runner = <span class="cls">Runner</span>(
+    agent=agent,
+    app_name=<span class="str">"my-app"</span>,
+    session_service=session_service,
+)
+
+<span class="cmt"># ── Run ───────────────────────────────────────────────────────────────────</span>
+<span class="kw">async def</span> <span class="fn">run_turn</span>(session_id: str, user_input: str) -> str:
+    <span class="cmt"># Manually ingest user message so it appears in the LCM store</span>
+    engine._ingest_messages([{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input}])
+
+    content = types.<span class="cls">Content</span>(
+        role=<span class="str">"user"</span>, parts=[types.<span class="cls">Part</span>(text=user_input)]
+    )
+    final_text = <span class="str">""</span>
+    <span class="kw">async for</span> event <span class="kw">in</span> runner.run_async(
+        user_id=<span class="str">"user"</span>, session_id=session_id, new_message=content
+    ):
+        <span class="cmt"># Consume ALL events — never break early (causes GeneratorExit in OTel)</span>
+        <span class="kw">if</span> event.is_final_response() <span class="kw">and not</span> final_text:
+            <span class="kw">if</span> event.content <span class="kw">and</span> event.content.parts:
+                final_text = <span class="str">""</span>.join(
+                    getattr(p, <span class="str">"text"</span>, <span class="str">""</span>) <span class="kw">or</span> <span class="str">""</span>
+                    <span class="kw">for</span> p <span class="kw">in</span> event.content.parts
+                    <span class="kw">if</span> getattr(p, <span class="str">"text"</span>, <span class="num">None</span>)
+                )
+    <span class="kw">return</span> final_text <span class="kw">or</span> <span class="str">"(no response)"</span>
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    session = <span class="kw">await</span> runner.session_service.create_session(
+        app_name=<span class="str">"my-app"</span>, user_id=<span class="str">"user"</span>, session_id=<span class="str">"adk-session"</span>
+    )
+    <span class="kw">while</span> <span class="num">True</span>:
+        user_input = input(<span class="str">"You: "</span>).strip()
+        <span class="kw">if not</span> user_input: <span class="kw">continue</span>
+        reply = <span class="kw">await</span> run_turn(session.id, user_input)
+        print(<span class="str">f"Agent: {reply}"</span>)
+
+asyncio.run(main())</div>
+      </div>
+
+      <div class="callout warn">
+        <strong>Important: consume all events</strong>
+        Never use <code>break</code> after <code>is_final_response()</code>. ADK's <code>run_async</code> generator runs inside OpenTelemetry spans — breaking early throws <code>GeneratorExit</code> into those spans and corrupts the session state. Always drain all events to natural completion.
+      </div>
+
+      <h3 class="sub-title">How it works</h3>
+      <table class="param-table">
+        <thead><tr><th>Component</th><th>Interface</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>LCMSessionService</td><td>BaseSessionService</td><td>Wraps InMemorySessionService; mirrors every append_event call to SQLite for dashboard visibility</td></tr>
+          <tr><td>lcm_compress_callback</td><td>before_model_callback</td><td>Intercepts LlmRequest.contents before each Gemini API call and replaces it with compressed context</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ AUTOGEN ══════════════ -->
+    <section class="doc-section" id="autogen">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-ag">AutoGen</div>
+      <h2 class="sec-title">AutoGen</h2>
+      <p class="sec-lead"><code>LCMContext</code> is a <code>ChatCompletionContext</code> subclass. Pass it as <code>model_context</code> to any AutoGen agent — no other changes needed.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">autogen_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">autogen_agentchat.agents</span> <span class="kw">import</span> <span class="cls">AssistantAgent</span>
+<span class="kw">from</span> <span class="imp">autogen_ext.models.openai</span> <span class="kw">import</span> <span class="cls">OpenAIChatCompletionClient</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.autogen</span> <span class="kw">import</span> <span class="cls">LCMContext</span>
+
+model_client = <span class="cls">OpenAIChatCompletionClient</span>(model=<span class="str">"gpt-4o-mini"</span>)
+
+<span class="cmt"># Reuse the same client for LCM summarization — no extra API key</span>
+engine = <span class="cls">LCMEngine</span>(llm=model_client)
+engine.bind_session(<span class="str">"autogen-session"</span>, context_length=<span class="num">128_000</span>)
+
+agent = <span class="cls">AssistantAgent</span>(
+    name=<span class="str">"assistant"</span>,
+    model_client=model_client,
+    model_context=<span class="cls">LCMContext</span>(engine),   <span class="cmt"># ← LCM drop-in</span>
+)
+
+<span class="cmt"># Multi-agent: each agent gets its own session</span>
+planner  = <span class="cls">AssistantAgent</span>(<span class="str">"planner"</span>,  model_client=model_client,
+    model_context=<span class="cls">LCMContext</span>(llm=model_client, session_id=<span class="str">"planner"</span>))
+executor = <span class="cls">AssistantAgent</span>(<span class="str">"executor"</span>, model_client=model_client,
+    model_context=<span class="cls">LCMContext</span>(llm=model_client, session_id=<span class="str">"executor"</span>))</div>
+      </div>
+
+      <h3 class="sub-title">LCMContext methods</h3>
+      <p>Satisfies the full <code>ChatCompletionContext</code> ABC:</p>
+      <table class="param-table">
+        <thead><tr><th>Method</th><th>Behaviour</th></tr></thead>
+        <tbody>
+          <tr><td>add_message(msg)</td><td>Persists to SQLite, triggers compression if threshold exceeded</td></tr>
+          <tr><td>get_messages()</td><td>Returns LCM-optimised context as typed AutoGen LLMMessage objects</td></tr>
+          <tr><td>clear()</td><td>Resets in-memory list and deletes session messages from store</td></tr>
+          <tr><td>message_count()</td><td>Returns count of messages currently held</td></tr>
+          <tr><td>save_state()</td><td>Returns serialisable state dict for checkpointing</td></tr>
+          <tr><td>load_state(state)</td><td>Restores context from a saved state dict</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ CREWAI ══════════════ -->
+    <section class="doc-section" id="crewai">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-cr">CrewAI</div>
+      <h2 class="sec-title">CrewAI</h2>
+      <p class="sec-lead"><code>LCMStorage</code> plugs into <code>LongTermMemory</code> as a storage backend. All crew memory goes through LCM's immutable store.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">crewai_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">crewai</span> <span class="kw">import</span> <span class="cls">Agent</span>, <span class="cls">Crew</span>, <span class="cls">Task</span>
+<span class="kw">from</span> <span class="imp">crewai.memory</span> <span class="kw">import</span> <span class="cls">LongTermMemory</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.crewai</span> <span class="kw">import</span> <span class="cls">LCMStorage</span>
+
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"openai/gpt-4o-mini"</span>)
+engine.bind_session(<span class="str">"crewai-session"</span>, context_length=<span class="num">128_000</span>)
+
+researcher = <span class="cls">Agent</span>(
+    role=<span class="str">"Research Analyst"</span>,
+    goal=<span class="str">"Gather and analyse market data"</span>,
+    backstory=<span class="str">"Expert at finding and synthesising information."</span>,
+    verbose=<span class="num">True</span>,
+)
+
+crew = <span class="cls">Crew</span>(
+    agents=[researcher],
+    tasks=[<span class="cls">Task</span>(description=<span class="str">"Research AI trends in 2025"</span>, agent=researcher)],
+    memory=<span class="num">True</span>,
+    long_term_memory=<span class="cls">LongTermMemory</span>(
+        storage=<span class="cls">LCMStorage</span>(engine)   <span class="cmt"># ← LCM drop-in</span>
+    ),
+)
+
+result = crew.kickoff()</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ OPENAI ══════════════ -->
+    <section class="doc-section" id="openai">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-oa">OpenAI SDK</div>
+      <h2 class="sec-title">OpenAI SDK</h2>
+      <p class="sec-lead"><code>OpenAIMessages</code> converts between the OpenAI message format and LCM's internal format. Compatible with Groq, Together, Mistral, Azure, Ollama, vLLM, and any OpenAI-compatible endpoint.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">openai_agent.py — with tool calls</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio, json
+<span class="kw">from</span> <span class="imp">openai</span> <span class="kw">import</span> <span class="cls">AsyncOpenAI</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.openai</span> <span class="kw">import</span> <span class="cls">OpenAIMessages</span>
+
+client = <span class="cls">AsyncOpenAI</span>()
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"openai/gpt-4o-mini"</span>)
+engine.bind_session(<span class="str">"openai-session"</span>, context_length=<span class="num">128_000</span>)
+
+tools = [{
+    <span class="str">"type"</span>: <span class="str">"function"</span>,
+    <span class="str">"function"</span>: {
+        <span class="str">"name"</span>: <span class="str">"get_weather"</span>,
+        <span class="str">"description"</span>: <span class="str">"Get weather for a city"</span>,
+        <span class="str">"parameters"</span>: {
+            <span class="str">"type"</span>: <span class="str">"object"</span>,
+            <span class="str">"properties"</span>: {<span class="str">"city"</span>: {<span class="str">"type"</span>: <span class="str">"string"</span>}},
+            <span class="str">"required"</span>: [<span class="str">"city"</span>],
+        },
+    },
+}]
+
+<span class="kw">async def</span> <span class="fn">chat</span>(messages: list, user_input: str) -> tuple:
+    messages.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})
+
+    <span class="cmt"># Convert to LCM → compress if needed → convert back to OpenAI format</span>
+    lcm = <span class="cls">OpenAIMessages</span>.to_lcm(messages)
+    <span class="kw">if</span> engine.should_compress_preflight(lcm):
+        lcm = <span class="kw">await</span> engine.compress(lcm)
+        messages = <span class="cls">OpenAIMessages</span>.from_lcm(lcm)
+
+    response = <span class="kw">await</span> client.chat.completions.create(
+        model=<span class="str">"gpt-4o-mini"</span>, messages=messages, tools=tools
+    )
+    msg = response.choices[<span class="num">0</span>].message
+    messages.append(msg.model_dump())
+
+    <span class="cmt"># Handle tool calls</span>
+    <span class="kw">if</span> msg.tool_calls:
+        <span class="kw">for</span> tc <span class="kw">in</span> msg.tool_calls:
+            args = json.loads(tc.function.arguments)
+            result = {<span class="str">"city"</span>: args[<span class="str">"city"</span>], <span class="str">"temp_c"</span>: <span class="num">22</span>}  <span class="cmt"># mock</span>
+            messages.append({
+                <span class="str">"role"</span>: <span class="str">"tool"</span>,
+                <span class="str">"tool_call_id"</span>: tc.id,
+                <span class="str">"content"</span>: json.dumps(result),
+            })
+        <span class="cmt"># Recurse to get final answer after tool results</span>
+        <span class="kw">return await</span> chat(messages, <span class="str">""</span>) <span class="kw">if not</span> user_input <span class="kw">else</span> (messages, <span class="str">""</span>)
+
+    engine.update_from_response({
+        <span class="str">"prompt_tokens"</span>:     response.usage.prompt_tokens,
+        <span class="str">"completion_tokens"</span>: response.usage.completion_tokens,
+    })
+    <span class="kw">return</span> messages, msg.content</div>
+      </div>
+
+      <div class="callout tip">
+        <strong>Groq / Together / Ollama / vLLM</strong>
+        Use the same <code>OpenAIMessages</code> converter — the message format is identical. Just change the client's <code>base_url</code> and the <code>LCMEngine(model=...)</code> string.
+      </div>
+    </section>
+
+    <!-- ══════════════ ANTHROPIC ══════════════ -->
+    <section class="doc-section" id="anthropic">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-an">Anthropic SDK</div>
+      <h2 class="sec-title">Anthropic SDK</h2>
+      <p class="sec-lead"><code>AnthropicMessages</code> handles Anthropic's content block format. <code>from_lcm()</code> returns a <code>(system_str, messages)</code> tuple because Anthropic takes system as a separate parameter.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">anthropic_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">anthropic</span> <span class="kw">import</span> <span class="cls">AsyncAnthropic</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.anthropic</span> <span class="kw">import</span> <span class="cls">AnthropicMessages</span>
+
+client = <span class="cls">AsyncAnthropic</span>()
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"anthropic/claude-haiku-4-5-20251001"</span>)
+engine.bind_session(<span class="str">"anthropic-session"</span>, context_length=<span class="num">200_000</span>)
+
+SYSTEM = <span class="str">"You are a helpful assistant."</span>
+
+<span class="kw">async def</span> <span class="fn">chat</span>(messages: list, user_input: str) -> tuple:
+    <span class="cmt"># Convert to LCM internal format (system is extracted from messages)</span>
+    lcm = <span class="cls">AnthropicMessages</span>.to_lcm(messages, system=SYSTEM)
+
+    <span class="kw">if</span> engine.should_compress_preflight(lcm):
+        lcm = <span class="kw">await</span> engine.compress(lcm)
+
+    <span class="cmt"># Add new user message after compression</span>
+    lcm.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_input})
+
+    <span class="cmt"># from_lcm returns (system_str, anthropic_messages)</span>
+    system_out, anthropic_msgs = <span class="cls">AnthropicMessages</span>.from_lcm(lcm)
+
+    response = <span class="kw">await</span> client.messages.create(
+        model=<span class="str">"claude-haiku-4-5-20251001"</span>,
+        max_tokens=<span class="num">2048</span>,
+        system=system_out <span class="kw">or</span> SYSTEM,
+        messages=anthropic_msgs,
+    )
+
+    reply = response.content[<span class="num">0</span>].text
+    messages.append({<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: reply})
+    engine.update_from_response({
+        <span class="str">"prompt_tokens"</span>:     response.usage.input_tokens,
+        <span class="str">"completion_tokens"</span>: response.usage.output_tokens,
+    })
+    <span class="kw">return</span> messages, reply</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ LLAMAINDEX ══════════════ -->
+    <section class="doc-section" id="llamaindex">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-li">LlamaIndex</div>
+      <h2 class="sec-title">LlamaIndex</h2>
+      <p class="sec-lead"><code>LlamaIndexMessages</code> converts between <code>ChatMessage</code> objects (with <code>MessageRole</code> enum) and LCM's internal format.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">llamaindex_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">llama_index.core.llms</span> <span class="kw">import</span> <span class="cls">ChatMessage</span>, <span class="cls">MessageRole</span>
+<span class="kw">from</span> <span class="imp">llama_index.llms.anthropic</span> <span class="kw">import</span> <span class="cls">Anthropic</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.llamaindex</span> <span class="kw">import</span> <span class="cls">LlamaIndexMessages</span>
+
+llm    = <span class="cls">Anthropic</span>(model=<span class="str">"claude-haiku-4-5-20251001"</span>)
+engine = <span class="cls">LCMEngine</span>(llm=llm)
+engine.bind_session(<span class="str">"llama-session"</span>, context_length=<span class="num">200_000</span>)
+
+history: list[<span class="cls">ChatMessage</span>] = []
+
+<span class="kw">async def</span> <span class="fn">chat</span>(user_input: str) -> str:
+    history.append(<span class="cls">ChatMessage</span>(role=<span class="cls">MessageRole</span>.USER, content=user_input))
+
+    <span class="cmt"># Convert → compress if needed → convert back</span>
+    lcm = <span class="cls">LlamaIndexMessages</span>.to_lcm(history)
+    <span class="kw">if</span> engine.should_compress_preflight(lcm):
+        lcm      = <span class="kw">await</span> engine.compress(lcm)
+        history[:] = <span class="cls">LlamaIndexMessages</span>.from_lcm(lcm)
+
+    response = <span class="kw">await</span> llm.achat(history)
+    history.append(<span class="cls">ChatMessage</span>(
+        role=<span class="cls">MessageRole</span>.ASSISTANT,
+        content=response.message.content
+    ))
+    <span class="kw">return</span> response.message.content</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ HAYSTACK ══════════════ -->
+    <section class="doc-section" id="haystack">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-hs">Haystack</div>
+      <h2 class="sec-title">Haystack</h2>
+      <p class="sec-lead"><code>HaystackMessages</code> handles both Haystack ≥2.3 <code>ToolCall</code> dataclass style and legacy <code>additional_kwargs</code> style.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">haystack_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">haystack.dataclasses</span> <span class="kw">import</span> <span class="cls">ChatMessage</span>
+<span class="kw">from</span> <span class="imp">haystack.components.generators.chat</span> <span class="kw">import</span> <span class="cls">OpenAIChatGenerator</span>
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.haystack</span> <span class="kw">import</span> <span class="cls">HaystackMessages</span>
+
+generator = <span class="cls">OpenAIChatGenerator</span>(model=<span class="str">"gpt-4o-mini"</span>)
+engine    = <span class="cls">LCMEngine</span>(model=<span class="str">"openai/gpt-4o-mini"</span>)
+engine.bind_session(<span class="str">"haystack-session"</span>, context_length=<span class="num">128_000</span>)
+
+history: list[<span class="cls">ChatMessage</span>] = []
+
+<span class="kw">async def</span> <span class="fn">chat</span>(user_input: str) -> str:
+    history.append(<span class="cls">ChatMessage</span>.from_user(user_input))
+
+    lcm = <span class="cls">HaystackMessages</span>.to_lcm(history)
+    <span class="kw">if</span> engine.should_compress_preflight(lcm):
+        lcm        = <span class="kw">await</span> engine.compress(lcm)
+        history[:] = <span class="cls">HaystackMessages</span>.from_lcm(lcm)
+
+    result  = generator.run(history)
+    reply   = result[<span class="str">"replies"</span>][<span class="num">0</span>]
+    history.append(reply)
+    <span class="kw">return</span> reply.text</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ GEMINI ══════════════ -->
+    <section class="doc-section" id="gemini">
+      <span class="sec-label">framework adapters</span>
+      <div class="fw-badge fw-gm">Gemini (raw)</div>
+      <h2 class="sec-title">Gemini (raw google-genai)</h2>
+      <p class="sec-lead"><code>GeminiMessages</code> converts between <code>types.Content</code> objects (Gemini's native format) and LCM. Also used internally by <code>lcm_compress_callback</code>.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">gemini_agent.py</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="imp">google</span> <span class="kw">import</span> generativeai <span class="kw">as</span> genai
+<span class="kw">from</span> <span class="imp">google.genai</span> <span class="kw">import</span> types
+<span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> <span class="cls">LCMEngine</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.gemini</span> <span class="kw">import</span> <span class="cls">GeminiMessages</span>
+
+model  = genai.<span class="cls">GenerativeModel</span>(<span class="str">"gemini-2.0-flash"</span>)
+engine = <span class="cls">LCMEngine</span>(model=<span class="str">"gemini/gemini-2.0-flash"</span>)
+engine.bind_session(<span class="str">"gemini-session"</span>, context_length=<span class="num">1_000_000</span>)
+
+history: list = []  <span class="cmt"># list[types.Content]</span>
+
+<span class="kw">async def</span> <span class="fn">chat</span>(user_input: str) -> str:
+    history.append(types.<span class="cls">Content</span>(
+        role=<span class="str">"user"</span>, parts=[types.<span class="cls">Part</span>(text=user_input)]
+    ))
+
+    <span class="cmt"># Convert → compress → convert back</span>
+    lcm = <span class="cls">GeminiMessages</span>.to_lcm(history)
+    <span class="kw">if</span> engine.should_compress_preflight(lcm):
+        lcm = <span class="kw">await</span> engine.compress(lcm)
+        _, history[:] = <span class="cls">GeminiMessages</span>.from_lcm(lcm)  <span class="cmt"># (system, contents)</span>
+
+    response = model.generate_content(history)
+    history.append(response.candidates[<span class="num">0</span>].content)
+    <span class="kw">return</span> response.text</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ MESSAGE CONVERTERS ══════════════ -->
+    <section class="doc-section" id="converters">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Message Converters</h2>
+      <p class="sec-lead">Every framework adapter ships a static converter class with <code>to_lcm()</code> and <code>from_lcm()</code> methods you can use independently of the higher-level adapters.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">all converters at a glance</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">openlcm.adapters.openai</span>     <span class="kw">import</span> <span class="cls">OpenAIMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.anthropic</span>  <span class="kw">import</span> <span class="cls">AnthropicMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.langchain</span>  <span class="kw">import</span> <span class="cls">LangChainMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.llamaindex</span> <span class="kw">import</span> <span class="cls">LlamaIndexMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.haystack</span>   <span class="kw">import</span> <span class="cls">HaystackMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.gemini</span>     <span class="kw">import</span> <span class="cls">GeminiMessages</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters.autogen</span>    <span class="kw">import</span> <span class="cls">AutoGenMessages</span>
+
+<span class="cmt"># All follow the same two-method interface:</span>
+lcm_msgs = <span class="cls">OpenAIMessages</span>.to_lcm(openai_messages)     <span class="cmt"># → list[dict]</span>
+oai_msgs = <span class="cls">OpenAIMessages</span>.from_lcm(lcm_msgs)          <span class="cmt"># → list[dict]</span>
+
+<span class="cmt"># Anthropic and Gemini return a tuple from from_lcm (system is separate):</span>
+system, msgs = <span class="cls">AnthropicMessages</span>.from_lcm(lcm_msgs)   <span class="cmt"># → (str, list)</span>
+system, msgs = <span class="cls">GeminiMessages</span>.from_lcm(lcm_msgs)      <span class="cmt"># → (str, list[Content])</span>
+
+<span class="cmt"># Auto-detect converter from message type:</span>
+<span class="kw">from</span> <span class="imp">openlcm.adapters</span> <span class="kw">import</span> auto_detect
+converter = auto_detect(messages)                       <span class="cmt"># returns the right class</span>
+lcm_msgs  = converter.to_lcm(messages)</div>
+      </div>
+
+      <h3 class="sub-title">LCM internal format</h3>
+      <p>All converters normalise to this format. Tool calls are JSON-serialised into the content string.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">internal message schema</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="cmt"># Plain message</span>
+{<span class="str">"role"</span>: <span class="str">"user"</span> | <span class="str">"assistant"</span> | <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"string"</span>}
+
+<span class="cmt"># Assistant with tool calls (content is JSON string)</span>
+{<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: <span class="str">"{\"text\": \"...\", \"tool_calls\": [{\"id\": \"tc_1\", \"name\": \"get_weather\", \"args\": {\"city\": \"Tokyo\"}, \"type\": \"function\"}]}"</span>}
+
+<span class="cmt"># Tool result</span>
+{<span class="str">"role"</span>: <span class="str">"tool"</span>, <span class="str">"content"</span>: <span class="str">"{\"temp_c\": 22}"</span>, <span class="str">"tool_call_id"</span>: <span class="str">"tc_1"</span>, <span class="str">"name"</span>: <span class="str">"get_weather"</span>}</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ DASHBOARD ══════════════ -->
+    <section class="doc-section" id="viz">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Live Dashboard</h2>
+      <p class="sec-lead">Every agent automatically gets a live browser dashboard. No config required.</p>
+
+      <h3 class="sub-title" style="margin-top:0">Start the dashboard</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">embedded in your agent (recommended)</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">import</span> threading
+<span class="kw">from</span> <span class="imp">openlcm.viz.server</span> <span class="kw">import</span> create_app, serve <span class="kw">as</span> viz_serve
+
+<span class="kw">def</span> <span class="fn">_start_viz</span>():
+    app = create_app(engine)
+    viz_serve(app, host=<span class="str">"127.0.0.1"</span>, port=<span class="num">7842</span>, open_browser=<span class="num">True</span>)
+
+threading.<span class="cls">Thread</span>(target=_start_viz, daemon=<span class="num">True</span>).start()
+<span class="cmt"># → opens http://localhost:7842 automatically</span></div>
+      </div>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">standalone CLI</span><span class="cb-lang">shell</span></div>
+        <div class="cb-body">openlcm viz                          <span class="cmt"># http://localhost:7842</span>
+openlcm viz --port 8080              <span class="cmt"># custom port</span>
+openlcm viz --db ~/.openlcm/app.db   <span class="cmt"># point at a specific DB</span></div>
+      </div>
+
+      <h3 class="sub-title">Dashboard panels</h3>
+      <table class="param-table">
+        <thead><tr><th>Panel</th><th>Shows</th></tr></thead>
+        <tbody>
+          <tr><td>Token Pressure Gauge</td><td>Live prompt token count vs threshold and max. Green → amber → red.</td></tr>
+          <tr><td>Summary DAG Viewer</td><td>Live tree of all DAG nodes grouped by depth (D0/D1/D2). Compression ratio per node.</td></tr>
+          <tr><td>SQLite Store</td><td>Every raw message with role badge, token estimate, and full content viewer. Tool calls shown with amber TOOL badge.</td></tr>
+          <tr><td>Event Log</td><td>Chronological stream: session_bound, compaction_start, node_added, compaction_end, token_pressure.</td></tr>
+          <tr><td>Sessions List</td><td>All sessions in the DB. Click to drill into any session's full history.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ CLI ══════════════ -->
+    <section class="doc-section" id="cli">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">CLI Reference</h2>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">all commands</span><span class="cb-lang">shell</span></div>
+        <div class="cb-body"><span class="cmt"># Dashboard</span>
+openlcm viz [--port 7842] [--db PATH] [--no-browser]
+
+<span class="cmt"># Full-text search across all sessions (FTS5)</span>
+openlcm grep "search term" [--session SESSION_ID] [--limit 20]
+
+<span class="cmt"># Session statistics</span>
+openlcm status [--session SESSION_ID] [--db PATH]
+
+<span class="cmt"># Export session to JSON</span>
+openlcm export SESSION_ID [-o output.json]
+
+<span class="cmt"># Recover raw messages from a DAG node</span>
+openlcm expand NODE_ID [--session SESSION_ID]</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ API REFERENCE ══════════════ -->
+    <section class="doc-section" id="api">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">API Reference</h2>
+
+      <h3 class="sub-title" style="margin-top:0">LCMEngine</h3>
+      <table class="param-table">
+        <thead><tr><th>Method / Property</th><th>Signature</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>LCMEngine()</td><td>model=, config=, db_path=, summarize_fn=, llm=</td><td>Create engine. Pass a LiteLLM model string, or an existing LLM via llm= or summarize_fn=.</td></tr>
+          <tr><td>bind_session()</td><td>(session_id, context_length=, platform="")</td><td>Activate a session and set its context window size.</td></tr>
+          <tr><td>compress()</td><td>async (messages: list[dict]) → list[dict]</td><td>Compress messages if threshold exceeded. No-op if not. Always returns a valid message list.</td></tr>
+          <tr><td>should_compress_preflight()</td><td>(messages: list[dict]) → bool</td><td>Check whether compression would fire without actually compressing.</td></tr>
+          <tr><td>update_from_response()</td><td>(usage: dict)</td><td>Feed token usage from the LLM response back to the engine for pressure tracking.</td></tr>
+          <tr><td>get_status()</td><td>() → dict</td><td>Returns store_messages, dag_nodes, compression_count, last_prompt_tokens, tokens_freed.</td></tr>
+          <tr><td>_ingest_messages()</td><td>(messages: list[dict])</td><td>Write messages directly to the SQLite store without triggering compression. Used by ADK adapter.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-title">LCMConfig fields</h3>
+      <table class="param-table">
+        <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>context_threshold</td><td>float</td><td>0.75</td><td>Fraction of context_length at which compression fires.</td></tr>
+          <tr><td>fresh_tail_count</td><td>int</td><td>64</td><td>Messages at the tail protected from compression.</td></tr>
+          <tr><td>leaf_chunk_tokens</td><td>int</td><td>20000</td><td>Approximate token budget per D0 leaf summary.</td></tr>
+          <tr><td>condensation_fanin</td><td>int</td><td>4</td><td>Number of D0 nodes before a D1 arc is created.</td></tr>
+          <tr><td>dynamic_leaf_chunk_enabled</td><td>bool</td><td>False</td><td>Auto-tune leaf_chunk_tokens based on observed turn sizes.</td></tr>
+          <tr><td>dynamic_leaf_chunk_max</td><td>int</td><td>40000</td><td>Upper bound for dynamic leaf chunk tuning.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">◆ Open<span class="fl-g">LCM</span></div>
+    <div class="footer-links">
+      <a href="https://github.com/akshay-eng/OpenLCM" target="_blank" rel="noopener">github</a>
+      <a href="index.html">home</a>
+      <a href="#install">install</a>
+      <a href="#adapters">adapters</a>
+      <a href="#viz">viz</a>
+    </div>
+    <div class="footer-copy">MIT · LCM paper by Ehrlich &amp; Blackman (Voltropy, 2026)</div>
+  </div>
+</footer>
+
+<script>
+// ── Install widget ────────────────────────────────────────────────────────
+const _CMDS = {
+  pip:    'pip install <span class="pkg">openlcm</span>',
+  uv:     'uv add <span class="pkg">openlcm</span>',
+  poetry: 'poetry add <span class="pkg">openlcm</span>',
+};
+function switchTab(widgetId, tool, btn) {
+  const cmdEl = document.getElementById(widgetId + '-cmd');
+  if (cmdEl) cmdEl.innerHTML = _CMDS[tool];
+  btn.closest('.install-widget').querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+}
+function copyCmd(cmdId, btn) {
+  const el = document.getElementById(cmdId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    btn.textContent = 'copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    const r = document.createRange(); r.selectNode(el);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+    document.execCommand('copy');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.textContent = 'copy'; }, 2000);
+  });
+}
+
+// Scroll progress bar
+const prog = document.getElementById('scroll-prog');
+window.addEventListener('scroll', () => {
+  prog.style.width = (window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100).toFixed(1) + '%';
+}, { passive: true });
+
+// Sidebar active link tracking
+const sections = document.querySelectorAll('.doc-section');
+const sbLinks  = document.querySelectorAll('.sb-link');
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      sbLinks.forEach(l => {
+        l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
