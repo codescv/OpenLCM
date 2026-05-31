@@ -1,163 +1,293 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenLCM Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OpenLCM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/styles.css"/>
 </head>
 <body>
 
-<!-- ── Header ── -->
-<header class="header">
-  <div class="header-logo">Open<span>LCM</span></div>
-  <div class="header-badge">Live Dashboard</div>
-  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim)">
-    <span class="status-dot disconnected" id="status-dot"></span>
-    <span id="status-label">Connecting…</span>
+<!-- ── Top navbar (always visible) ─────────────────────────────────── -->
+<nav class="navbar">
+  <div class="nb-brand">
+    <span class="nb-caret">&gt;</span>
+    <span class="nb-name">OpenLCM</span>
   </div>
-  <div class="header-meta">
-    <div class="header-stat">
-      <span class="header-stat-label">Compressions</span>
-      <span class="header-stat-value" id="si-compressions">—</span>
+  <div class="nb-tabs">
+    <button class="nb-tab active" data-page="overview" onclick="navigate('overview')">Overview</button>
+    <button class="nb-tab" data-page="session" id="nb-tab-session" style="display:none" onclick="navigateSessionTab()">
+      <span id="nb-session-label">Session</span>
+    </button>
+  </div>
+  <div class="nb-right">
+    <button class="nb-btn" onclick="forceRefresh()" title="Refresh">↻</button>
+  </div>
+</nav>
+
+<!-- ── Page: Overview ────────────────────────────────────────────────── -->
+<div id="page-overview" class="page active">
+
+  <div class="ov-header">
+    <h1 class="ov-title">Agent Sessions</h1>
+    <p class="ov-sub">Real-time context management across all running agents</p>
+  </div>
+
+  <!-- Global stat cards -->
+  <div class="ov-stats" id="ov-stats">
+    <div class="stat-card sc-blue">
+      <div class="sc-icon">⬡</div>
+      <div class="sc-val" id="ov-sessions">0</div>
+      <div class="sc-lbl">Total Sessions</div>
     </div>
-    <div class="header-stat">
-      <span class="header-stat-label">DAG Nodes</span>
-      <span class="header-stat-value" id="si-nodes">—</span>
+    <div class="stat-card sc-green">
+      <div class="sc-icon">◉</div>
+      <div class="sc-val" id="ov-active">0</div>
+      <div class="sc-lbl">Active Now</div>
     </div>
-    <div class="header-stat">
-      <span class="header-stat-label">Messages</span>
-      <span class="header-stat-value" id="si-messages">—</span>
+    <div class="stat-card sc-purple">
+      <div class="sc-icon">⊡</div>
+      <div class="sc-val" id="ov-messages">0</div>
+      <div class="sc-lbl">Messages Stored</div>
     </div>
-    <div class="header-stat">
-      <span class="header-stat-label">Status</span>
-      <span class="header-stat-value" id="si-status" style="color:var(--green)">idle</span>
+    <div class="stat-card sc-amber">
+      <div class="sc-icon">◈</div>
+      <div class="sc-val" id="ov-compressions">0</div>
+      <div class="sc-lbl">Compressions</div>
+    </div>
+    <div class="stat-card sc-teal">
+      <div class="sc-icon">⬆</div>
+      <div class="sc-val" id="ov-freed">0</div>
+      <div class="sc-lbl">Tokens Freed</div>
+      <div class="sc-cost" id="ov-cost-saved">≈ $0.000</div>
+    </div>
+    <div class="stat-card sc-dim">
+      <div class="sc-icon">◎</div>
+      <div class="sc-val" id="ov-dag-nodes">0</div>
+      <div class="sc-lbl">DAG Nodes</div>
     </div>
   </div>
-</header>
 
-<!-- ── Main layout ── -->
-<main class="layout">
+  <!-- Sessions table + activity feed -->
+  <div class="ov-body">
 
-  <!-- 1. Token Pressure Gauge -->
-  <div class="panel panel-gauge">
-    <div class="panel-header"><span class="icon">⬡</span> Token Pressure</div>
-    <div class="panel-body">
-      <div class="gauge-wrap">
-        <svg class="gauge-svg" viewBox="0 0 200 110">
-          <!-- Half-circle arc from 180° to 0° -->
-          <path class="gauge-track"
-            d="M 16,100 A 84,84 0 0 1 184,100"
-            stroke-dasharray="264 264" />
-          <path id="gauge-fill" class="gauge-fill"
-            d="M 16,100 A 84,84 0 0 1 184,100"
-            stroke-dasharray="0 264"
-            stroke="var(--green)" />
-          <text x="100" y="90" text-anchor="middle" fill="var(--text)"
-            font-size="22" font-weight="700" font-family="JetBrains Mono,monospace" id="gauge-pct">0%</text>
-        </svg>
-        <div class="gauge-stats">
-          <div class="gauge-stat">
-            <div class="gauge-stat-val" id="gauge-prompt" style="color:var(--text)">—</div>
-            <div class="gauge-stat-label">Prompt tokens</div>
+    <div class="ov-sessions-wrap">
+      <div class="panel-hdr">
+        <span class="panel-title">SESSIONS</span>
+        <span class="panel-sub" id="ov-session-count">— sessions</span>
+      </div>
+      <div class="sessions-table-wrap">
+        <table class="sessions-tbl">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Status</th>
+              <th>Context</th>
+              <th>Messages</th>
+              <th>DAG</th>
+              <th>Compressions</th>
+              <th>Freed</th>
+              <th>Last Active</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sessions-tbody">
+            <tr><td colspan="9" class="tbl-empty">Loading sessions…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="ov-feed-wrap">
+      <div class="panel-hdr">
+        <span class="panel-title">LIVE FEED</span>
+        <span class="feed-badge" id="feed-badge">0</span>
+      </div>
+      <div class="feed-list" id="feed-list">
+        <div class="feed-wait">Waiting for events…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Page: Session Detail ──────────────────────────────────────────── -->
+<div id="page-session" class="page">
+
+  <!-- Session toolbar -->
+  <div class="sess-toolbar">
+    <button class="back-btn" onclick="navigate('overview')">← Sessions</button>
+    <div class="sess-info">
+      <span class="sess-id" id="sess-id-label">—</span>
+      <span class="sess-status-badge" id="sess-status-badge">idle</span>
+    </div>
+    <div class="sess-actions">
+      <button class="act-btn act-warn" onclick="confirmAction('clear-messages')" title="Delete all stored messages for this session">
+        Clear Messages
+      </button>
+      <button class="act-btn act-warn" onclick="confirmAction('clear-dag')" title="Delete all DAG summary nodes">
+        Clear DAG
+      </button>
+      <button class="act-btn act-danger" onclick="confirmAction('delete-session')" title="Permanently delete this session">
+        Delete Session
+      </button>
+    </div>
+  </div>
+
+  <!-- 3-column layout -->
+  <div class="sess-layout">
+
+    <!-- Left: stats + events + search -->
+    <aside class="left-panel">
+      <div class="lsec">
+        <div class="sec-title">TOKEN PRESSURE</div>
+        <div class="pbar-wrap">
+          <div class="pbar-row">
+            <div class="pbar-track">
+              <div class="pbar-fill" id="pbar-fill"></div>
+              <div class="pbar-marker" id="pbar-marker"></div>
+            </div>
+            <div class="pbar-pct" id="pbar-pct">—</div>
           </div>
-          <div class="gauge-stat">
-            <div class="gauge-stat-val" id="gauge-threshold" style="color:var(--yellow)">—</div>
-            <div class="gauge-stat-label">Threshold</div>
-          </div>
-          <div class="gauge-stat">
-            <div class="gauge-stat-val" id="gauge-max" style="color:var(--text-dim)">—</div>
-            <div class="gauge-stat-label">Context max</div>
+          <div class="pbar-stats">
+            <div class="ps"><span class="ps-v" id="ps-prompt">—</span><span class="ps-k">prompt</span></div>
+            <div class="ps"><span class="ps-v ps-amber" id="ps-threshold">—</span><span class="ps-k">threshold</span></div>
+            <div class="ps"><span class="ps-v ps-dim" id="ps-max">—</span><span class="ps-k">ctx max</span></div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- 2. DAG Viewer -->
-  <div class="panel panel-dag">
-    <div class="panel-header"><span class="icon">◈</span> Summary DAG</div>
-    <div class="panel-body" style="padding:8px">
-      <div class="dag-container" id="dag-container">
-        <div class="dag-empty">Waiting for DAG data…</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 3. Session Sidebar -->
-  <div class="panel panel-sidebar sidebar">
-    <div class="panel-header"><span class="icon">◎</span> Session</div>
-    <div class="panel-body">
-      <div class="session-info">
-        <div class="session-row">
-          <span class="session-label">Session ID</span>
-          <span class="session-value" id="si-session">—</span>
+      <div class="lsec">
+        <div class="sec-title">SESSION STATS</div>
+        <div class="mini-grid">
+          <div class="mg-card"><div class="mg-v" id="sc-compressions">0</div><div class="mg-k">compress</div></div>
+          <div class="mg-card"><div class="mg-v mg-green" id="sc-freed">0</div><div class="mg-k">tok freed</div><div class="mg-cost" id="sc-cost">≈ $0.000</div></div>
+          <div class="mg-card"><div class="mg-v" id="sc-messages">0</div><div class="mg-k">stored</div></div>
+          <div class="mg-card"><div class="mg-v" id="sc-nodes">0</div><div class="mg-k">dag nodes</div></div>
         </div>
-        <div class="session-row">
-          <span class="session-label">Platform</span>
-          <span class="session-value" id="si-platform">—</span>
-        </div>
-        <div class="session-row">
-          <span class="session-label">Compress threshold</span>
-          <span class="session-value" id="si-threshold">75%</span>
-        </div>
-        <div class="session-row">
-          <span class="session-label">Fresh tail</span>
-          <span class="session-value" id="si-tail">64</span>
-        </div>
-        <div class="session-row">
-          <span class="session-label">Summary model</span>
-          <span class="session-value" id="si-model">—</span>
-        </div>
-        <div class="session-row">
-          <span class="session-label">Database</span>
-          <span class="session-value" id="si-db">—</span>
-        </div>
+        <div class="sess-meta" id="sess-meta"></div>
       </div>
 
-      <div class="session-divider"></div>
+      <div class="lsec lsec-grow">
+        <div class="sec-title">EVENT LOG</div>
+        <div class="elog" id="elog"><div class="elog-wait">Waiting…</div></div>
+      </div>
 
-      <!-- Session list -->
-      <div style="font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Sessions</div>
-      <div class="sessions-list" id="sessions-list"></div>
-
-      <div class="session-divider"></div>
-
-      <!-- Search -->
-      <div class="search-box">
-        <div style="font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Search history</div>
-        <input class="search-input" id="search-input" type="text" placeholder="Search messages…" autocomplete="off" />
+      <div class="lsec">
+        <div class="sec-title">SEARCH</div>
+        <div class="search-row">
+          <span class="search-icon">⌕</span>
+          <input type="text" class="search-input" id="search-input" placeholder="Search messages…" autocomplete="off"/>
+        </div>
         <div class="search-results" id="search-results"></div>
       </div>
-    </div>
-  </div>
+    </aside>
 
-  <!-- 4. Message Feed -->
-  <div class="panel panel-feed">
-    <div class="panel-header"><span class="icon">≡</span> Message Feed <span id="si-msg-count" style="margin-left:auto;font-weight:400;color:var(--text-dim)"></span></div>
-    <div class="panel-body" style="padding:4px">
-      <div class="feed-container" id="feed-container">
-        <div style="color:var(--text-dim);text-align:center;padding:40px 0">Waiting for messages…</div>
+    <!-- Center: graph + node detail -->
+    <main class="graph-panel">
+      <div class="graph-hdr">
+        <span class="sec-title" style="margin-bottom:0">MEMORY GRAPH</span>
+        <div class="graph-legend">
+          <span class="lg lg-d0">● D0 Leaf</span>
+          <span class="lg lg-d1">● D1 Arc</span>
+          <span class="lg lg-d2">● D2 Durable</span>
+          <span class="lg lg-db">▪ SQLite</span>
+        </div>
       </div>
-    </div>
-  </div>
+      <div class="graph-area">
+        <div class="graph-view" id="graph-view">
+          <div class="graph-empty" id="graph-empty">
+            <div class="ge-icon">◈</div>
+            <div class="ge-msg">No summary nodes yet</div>
+            <div class="ge-sub">Nodes appear after first compaction</div>
+          </div>
+          <div id="dag-svg-wrap"></div>
+        </div>
 
-  <!-- 5. Compaction Timeline -->
-  <div class="panel panel-timeline">
-    <div class="panel-header"><span class="icon">⏱</span> Event Timeline</div>
-    <div class="panel-body" style="padding:4px">
-      <div class="timeline-container" id="timeline-container">
-        <div class="timeline-empty">Waiting for events…</div>
+        <!-- Node detail drawer -->
+        <div class="node-detail" id="node-detail">
+          <div class="nd-hdr">
+            <span class="nd-title" id="nd-title">Node Detail</span>
+            <span class="nd-badge" id="nd-badge"></span>
+            <div class="nd-actions">
+              <button class="nd-del-btn" id="nd-delete-btn" onclick="deleteCurrentNode()">Delete Node</button>
+              <button class="nd-close-btn" id="nd-close">✕</button>
+            </div>
+          </div>
+          <div class="nd-body">
+            <div class="nd-left">
+              <div class="nd-section-label">FULL SUMMARY</div>
+              <div class="nd-summary" id="nd-summary"></div>
+              <div class="nd-section-label" style="margin-top:14px">REFERENCES</div>
+              <div class="nd-ref-explain" id="nd-ref-explain"></div>
+              <div class="nd-ref-tags" id="nd-ref-tags"></div>
+            </div>
+            <div class="nd-right">
+              <div class="nd-section-label">COMPLETE JSON</div>
+              <pre class="nd-json" id="nd-json"></pre>
+            </div>
+          </div>
+        </div>
       </div>
+    </main>
+
+    <!-- Right: SQLite store -->
+    <aside class="right-panel">
+      <div class="rpanel-hdr">
+        <span class="sec-title" style="margin-bottom:0">SQLITE STORE</span>
+        <span class="store-count" id="store-count">0 rows</span>
+      </div>
+      <div class="store-wrap">
+        <table class="store-tbl">
+          <thead>
+            <tr><th>#</th><th>role</th><th>tok</th><th>content</th><th></th></tr>
+          </thead>
+          <tbody id="store-tbody">
+            <tr><td colspan="5" class="store-empty">No messages yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- ── Message viewer ────────────────────────────────────────────────── -->
+<div class="msg-viewer-overlay" id="msg-viewer-overlay" onclick="closeMsgViewer(event)">
+  <div class="msg-viewer" id="msg-viewer">
+    <div class="mv-header">
+      <div class="mv-meta">
+        <span class="mv-badge" id="mv-badge"></span>
+        <span class="mv-id" id="mv-id"></span>
+        <span class="mv-tokens" id="mv-tokens"></span>
+        <span class="mv-time" id="mv-time"></span>
+      </div>
+      <button class="mv-close" onclick="closeMsgViewer()">✕</button>
+    </div>
+    <div class="mv-body" id="mv-body"></div>
+  </div>
+</div>
+
+<!-- ── Confirmation modal ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-icon" id="modal-icon">⚠</div>
+    <h2 class="modal-title" id="modal-title">Confirm</h2>
+    <p class="modal-body" id="modal-body">Are you sure?</p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-confirm" id="modal-confirm-btn" onclick="executeConfirmedAction()">Delete</button>
     </div>
   </div>
+</div>
 
-</main>
+<!-- ── Toast container ───────────────────────────────────────────────── -->
+<div class="toasts" id="toasts"></div>
 
-<!-- Node preview tooltip -->
-<div class="node-preview" id="node-preview"></div>
+<!-- ── Node tooltip ──────────────────────────────────────────────────── -->
+<div class="node-tooltip" id="node-tooltip"></div>
 
 <script src="/static/dashboard.js"></script>
 </body>

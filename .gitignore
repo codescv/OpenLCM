@@ -48,7 +48,20 @@ Thumbs.db
 
 # OpenLCM runtime data (local databases, extractions)
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 *.sqlite
 lcm-large-outputs/
 lcm-extractions/
+
+# Examples (local demo scripts, not part of the published SDK)
+example/
+
+# Claude / agent tooling
+.agents/
+skills-lock.json
+skills/
+
+# Misc
+docs.html

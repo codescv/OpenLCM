@@ -255,6 +255,12 @@ class SummaryDAG:
         self._conn.commit()
         return deleted
 
+    def delete_node(self, node_id: int) -> bool:
+        """Delete a single DAG node by node_id. Returns True if deleted."""
+        cur = self._conn.execute("DELETE FROM summary_nodes WHERE node_id = ?", (node_id,))
+        self._conn.commit()
+        return bool(cur.rowcount)
+
     def reassign_session_nodes(self, old_session_id: str, new_session_id: str) -> int:
         """Move all nodes from one session_id to another.
 

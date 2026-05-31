@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenLCM — Unbounded Memory. Bounded Context.</title>
+  <meta name="description" content="Framework-agnostic Lossless Context Management SDK for AI agents. Nothing is ever lost." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0C0C0C; --bg-2:#141414; --bg-3:#1C1C1C; --bg-4:#242424;
+      --border:    rgba(255,255,255,0.07); --border-2:rgba(255,255,255,0.12);
+      --fg:        #E2E8F0; --fg-muted:#9CA3AF; --fg-dim:#4B5563;
+      --green:     #4ADE80; --green-dim:rgba(74,222,128,0.12); --green-glow:rgba(74,222,128,0.2);
+      --amber:     #FBBF24; --blue:#60A5FA; --blue-dim:rgba(96,165,250,0.1);
+      --purple:    #C084FC; --purple-dim:rgba(192,132,252,0.1);
+      --red:       #F87171; --cyan:#22D3EE;
+      --mono:      'JetBrains Mono','SF Mono','Fira Code',monospace;
+      --easing:    cubic-bezier(0.16,1,0.3,1);
+      /* Demo panel — exact losslesscontext.ai palette */
+      --d-bg:      #0d1117; --d-surface:#161b22; --d-border:#30363d;
+      --d-text:    #e6edf3; --d-muted:#7d8590; --d-dim:#484f58;
+      --d-user:    #388bfd; --d-asst:#3fb950; --d-tool:#d2a8ff;
+      --d-sum:     #f0883e; --d-sum-d1:#ff7b72;
+      --d-fresh:   #56d364; --d-budget:#388bfd;
+      --d-warn:    #f0883e; --d-over:#ff7b72;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:var(--mono);background:var(--bg);color:var(--fg);overflow-x:hidden;font-size:14px;line-height:1.6}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);pointer-events:none;z-index:9999}
+
+    #scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:1001;background:var(--green);box-shadow:0 0 8px var(--green);width:0;transition:width .1s linear}
+
+    .reveal{opacity:0;transform:translateY(16px);transition:opacity .5s var(--easing),transform .5s var(--easing)}
+    .reveal.visible{opacity:1;transform:none}
+    .r1{transition-delay:.08s}.r2{transition-delay:.16s}.r3{transition-delay:.24s}.r4{transition-delay:.32s}
+    @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+
+    .wrap{max-width:1040px;margin:0 auto;padding:0 28px}
+    .section{padding:80px 0;border-top:1px solid var(--border)}
+
+    /* NAV */
+    nav{position:sticky;top:0;z-index:100;background:rgba(12,12,12,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+    .nav-inner{max-width:1040px;margin:0 auto;padding:0 28px;display:flex;align-items:center;height:48px}
+    .nav-prompt{color:var(--green);font-weight:600;font-size:13px;margin-right:16px;white-space:nowrap}
+    .nav-path{color:var(--fg-muted);font-size:12px}
+    .nav-links{display:flex;gap:0;list-style:none;margin-left:auto}
+    .nav-links a{color:var(--fg-dim);text-decoration:none;font-size:12px;padding:0 14px;height:48px;display:flex;align-items:center;border-left:1px solid var(--border);transition:color .15s,background .15s}
+    .nav-links a:hover{color:var(--fg);background:var(--bg-2)}
+    .nav-links .nav-cta{color:var(--bg);background:var(--green);font-weight:700}
+    .nav-links .nav-cta:hover{opacity:.85}
+    @media(max-width:680px){.nav-links{display:none}}
+
+    /* HERO */
+    .hero{padding:60px 0 0;min-height:calc(100vh - 48px);display:flex;align-items:center}
+    .hero-inner{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+    @media(max-width:800px){.hero-inner{grid-template-columns:1fr}}
+    .hero-label{font-size:11px;color:var(--fg-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px}
+    .hero-label::before{content:'# '}
+    .hero-title{font-size:clamp(28px,4vw,52px);font-weight:700;line-height:1.1;letter-spacing:-1px;margin-bottom:24px}
+    .t-green{color:var(--green);text-shadow:0 0 20px var(--green-glow)}
+    .t-dim{color:var(--fg-dim);font-weight:300}
+    .hero-tagline{font-size:14px;color:var(--fg-muted);line-height:1.8;margin-bottom:32px;max-width:440px}
+    .hl{color:var(--fg)}
+    .hero-actions{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;font-family:var(--mono);font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .15s var(--easing)}
+    .btn-green{background:var(--green);color:#0C0C0C}
+    .btn-green:hover{box-shadow:0 0 20px var(--green-glow);transform:translateY(-1px)}
+    .btn-ghost{background:transparent;color:var(--fg-muted);border:1px solid var(--border-2)}
+    .btn-ghost:hover{color:var(--fg);border-color:var(--fg-dim)}
+    .hero-install{margin-top:24px;display:flex;align-items:center;background:var(--bg-2);border:1px solid var(--border);width:fit-content}
+    .hero-install-prompt{padding:10px 14px;color:var(--green);font-size:13px;border-right:1px solid var(--border)}
+    .hero-install-cmd{padding:10px 16px;color:var(--fg-muted);font-size:13px}
+    .cmd-pkg{color:var(--fg)}
+
+    /* Terminal widget */
+    .term-window{background:var(--bg-2);border:1px solid var(--border);overflow:hidden}
+    .term-bar{background:var(--bg-3);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px}
+    .term-dots{display:flex;gap:6px}
+    .term-dot{width:10px;height:10px;border-radius:50%}
+    .td-r{background:#FF5F56}.td-y{background:#FFBD2E}.td-g{background:#27C93F}
+    .term-path{margin-left:4px;font-size:11px;color:var(--fg-dim)}
+    .tp-dir{color:var(--blue)}.tp-git{color:var(--purple)}
+    .term-body{padding:16px 18px;font-size:12.5px;line-height:1.75}
+    .tl{display:block}
+    .tl-prompt::before{content:'◆ ';color:var(--green)}
+    .tl-cmd{color:var(--green)}.tl-str{color:var(--amber)}.tl-num{color:var(--cyan)}
+    .tl-dim{color:var(--fg-dim)}.tl-ok{color:var(--green)}.tl-warn{color:var(--amber)}
+    .tl-tool{color:var(--purple)}.tl-muted{color:var(--fg-muted)}.tl-white{color:var(--fg)}
+    .tl-gap{display:block;height:6px}
+    .cursor{display:inline-block;width:8px;height:16px;background:var(--green);vertical-align:middle;animation:blink 1s step-end infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+    /* Section headers */
+    .cli-head{font-size:12px;color:var(--fg-dim);margin-bottom:32px}
+    .cli-title{font-size:clamp(22px,3vw,38px);font-weight:700;margin-bottom:12px;line-height:1.2;letter-spacing:-.5px}
+    .cli-sub{font-size:13px;color:var(--fg-muted);line-height:1.8;max-width:560px}
+    code{background:var(--bg-3);color:var(--cyan);padding:1px 5px;font-family:var(--mono);font-size:.9em}
+
+    /* Misc shared */
+    .compare-row{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:40px}
+    @media(max-width:700px){.compare-row{grid-template-columns:1fr}}
+    .compare-cell{padding:24px;border:1px solid var(--border)}
+    .compare-cell+.compare-cell{border-left:none}
+    .compare-cell.good{border-top:2px solid var(--green)}.compare-cell.bad{border-top:2px solid var(--red)}
+    .cc-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+    .cc-title{font-size:16px;font-weight:700;margin-bottom:10px}
+    .cc-item{display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-size:12px}
+
+    .dag-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px;align-items:start}
+    @media(max-width:800px){.dag-grid{grid-template-columns:1fr}}
+    .dag-cli{background:var(--bg-2);border:1px solid var(--border);font-size:12px;line-height:1.9}
+    .dag-cli-head{background:var(--bg-3);border-bottom:1px solid var(--border);padding:8px 14px;font-size:11px;color:var(--fg-dim);display:flex;gap:10px;align-items:center}
+    .dag-cli-body{padding:14px 16px}
+    .dag-node-line{display:flex;align-items:center;gap:8px;margin:3px 0;padding:5px 8px}
+    .dag-node-line:hover{background:var(--bg-3)}
+    .dag-connector{color:var(--fg-dim);padding-left:12px;font-size:11px;margin:2px 0}
+    .step-list{display:flex;flex-direction:column;gap:20px}
+    .step-li{display:flex;gap:14px}
+    .step-num-cli{width:22px;height:22px;min-width:22px;border:1px solid var(--border-2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--green);font-weight:700;flex-shrink:0;margin-top:2px}
+    .step-li h4{font-size:14px;font-weight:700;margin-bottom:4px}
+    .step-li p{font-size:12px;color:var(--fg-muted);line-height:1.75}
+    .step-tag{display:inline-block;margin-top:8px;background:var(--green-dim);color:var(--green);font-size:11px;padding:2px 8px;border:1px solid rgba(74,222,128,.2)}
+
+    .guarantees-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:40px;background:var(--border)}
+    @media(max-width:700px){.guarantees-grid{grid-template-columns:1fr}}
+    .g-cell{background:var(--bg-2);padding:28px 24px;transition:background .2s}
+    .g-cell:hover{background:var(--bg-3)}
+    .g-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+    .g-sym{font-size:16px;color:var(--green)}.g-title{font-size:14px;font-weight:700}
+    .g-body{font-size:12px;color:var(--fg-muted);line-height:1.8}
+    .g-tag{margin-top:12px;display:inline-block;background:var(--green-dim);color:var(--green);font-size:10px;padding:2px 8px;border:1px solid rgba(74,222,128,.2)}
+
+    .adapters-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--border);margin-top:40px}
+    @media(max-width:700px){.adapters-grid{grid-template-columns:1fr}}
+    .adapter-cell{background:var(--bg-2);overflow:hidden;transition:background .2s}
+    .adapter-cell:hover{background:var(--bg-3)}
+    .adapter-head{background:var(--bg-3);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px}
+    .adapter-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1px solid var(--border-2);color:var(--fg-muted)}
+    .adapter-name{font-size:13px;font-weight:700}.adapter-iface{font-size:10px;color:var(--fg-dim);margin-left:auto}
+    .adapter-body{padding:14px 16px}
+    .adapter-desc{font-size:12px;color:var(--fg-muted);line-height:1.75;margin-bottom:14px}
+    .code-snippet{background:var(--bg);border:1px solid var(--border);padding:12px 14px;font-size:11.5px;line-height:1.75;overflow-x:auto}
+    .cs-kw{color:var(--purple)}.cs-imp{color:var(--blue)}.cs-cls{color:var(--amber)}
+    .cs-str{color:var(--green)}.cs-cmt{color:var(--fg-dim)}.cs-fn{color:var(--cyan)}
+
+    .bench-table{width:100%;border-collapse:collapse;background:var(--bg-2);border:1px solid var(--border)}
+    .bench-table th,.bench-table td{padding:10px 16px;text-align:left;font-size:12px;border-bottom:1px solid var(--border)}
+    .bench-table th{background:var(--bg-3);color:var(--fg-dim);font-weight:500;font-size:11px}
+    .bench-table td{color:var(--fg-muted)}
+    .bench-table .td-lcm{color:var(--green);font-weight:700}
+    .bench-table tr:hover td{background:var(--bg-3)}
+    .bbm{height:6px;background:var(--green);transition:width 1s var(--easing)}
+    .bbm.cc{background:var(--fg-dim)}
+    .bench-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--border);margin-top:1px}
+    @media(max-width:700px){.bench-stats{grid-template-columns:repeat(2,1fr)}}
+    .bsc{background:var(--bg-2);padding:20px 16px;text-align:center}
+    .bsc-val{font-size:28px;font-weight:700;color:var(--green)}.bsc-label{font-size:11px;color:var(--fg-dim);margin-top:4px}
+
+    .qs-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--border);margin-top:40px}
+    @media(max-width:700px){.qs-grid{grid-template-columns:1fr}}
+    .qs-cell{background:var(--bg-2);overflow:hidden}
+    .qs-head{background:var(--bg-3);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px}
+    .qs-step{background:rgba(74,222,128,.12);color:var(--green);font-size:10px;padding:1px 8px;border:1px solid rgba(74,222,128,.2)}
+    .qs-title{font-size:12px;font-weight:700;color:var(--fg-muted)}
+    .qs-code{padding:14px 16px;font-size:11.5px;line-height:1.75}
+
+    .cta-section{padding:80px 0;border-top:1px solid var(--border);position:relative;overflow:hidden}
+    .cta-section::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 100%,rgba(74,222,128,.04) 0%,transparent 70%);pointer-events:none}
+    .cta-inner{text-align:center;position:relative}
+    .cta-pre{font-size:12px;color:var(--fg-dim);margin-bottom:16px}
+    .cta-title{font-size:clamp(24px,4vw,44px);font-weight:700;letter-spacing:-1px;margin-bottom:14px;line-height:1.15}
+    .cta-accent{color:var(--green);text-shadow:0 0 30px var(--green-glow)}
+    .cta-sub{font-size:13px;color:var(--fg-muted);margin-bottom:32px;line-height:1.8}
+    .cta-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+    .cta-install{margin-top:28px;display:flex;align-items:stretch;background:var(--bg-2);border:1px solid var(--border);max-width:480px;margin-left:auto;margin-right:auto}
+    .ci-prompt{padding:12px 14px;color:var(--green);border-right:1px solid var(--border);font-size:13px}
+    .ci-cmd{padding:12px 16px;color:var(--fg);font-size:13px;flex:1}
+    .ci-cmd .pkg{color:var(--cyan)}
+
+    footer{border-top:1px solid var(--border);padding:32px 0;background:var(--bg-2)}
+    .footer-inner{max-width:1040px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+    .footer-logo{font-size:14px;font-weight:700}.fl-g{color:var(--green)}
+    .footer-links{display:flex;gap:20px}
+    .footer-links a{color:var(--fg-dim);text-decoration:none;font-size:12px;transition:color .15s}
+    .footer-links a:hover{color:var(--fg)}
+    .footer-copy{font-size:11px;color:var(--fg-dim)}
+
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--bg-4)}
+
+    /* ════════════════════════════════════════════════════════════════
+       DEMO — losslesscontext.ai pattern
+       Left: chapters scroll normally
+       Right: CONTEXT WINDOW panel is sticky
+    ════════════════════════════════════════════════════════════════ */
+
+    .demo-wrap{border-top:1px solid var(--border);background:var(--d-bg)}
+
+    /* Chapter dots progress indicator */
+    .demo-chapter-dots{
+      display:flex;gap:6px;padding:20px 28px;
+      position:sticky;top:48px;z-index:50;
+      background:var(--d-bg);border-bottom:1px solid var(--d-border);
+      align-items:center;
+    }
+    .demo-dot{width:8px;height:8px;border-radius:50%;background:var(--d-dim);transition:background .3s,transform .3s;cursor:pointer}
+    .demo-dot.active{background:var(--d-sum);transform:scale(1.3)}
+    .demo-dot.trad{background:var(--d-sum)}
+    .demo-dot.lcm-dot{background:var(--d-fresh)}
+    .demo-chapter-label{font-size:11px;color:var(--d-muted);margin-left:12px;letter-spacing:.5px;transition:color .3s}
+    .demo-chapter-label.trad-label{color:var(--d-sum)}
+    .demo-chapter-label.lcm-label{color:var(--d-fresh)}
+
+    /* Split layout */
+    .demo-body{
+      display:flex;align-items:flex-start;
+      max-width:1380px;margin:0 auto;
+      padding:0;
+    }
+
+    /* Left: chapters stack vertically, scroll normally */
+    .demo-chapters{
+      width:38%;min-width:320px;
+      padding:0 40px 120px 40px;
+      flex-shrink:0;
+    }
+
+    .demo-chapter{
+      min-height:85vh;
+      display:flex;flex-direction:column;justify-content:center;
+      padding:60px 0;
+      opacity:.35;transition:opacity .4s;
+    }
+    .demo-chapter.active{opacity:1}
+
+    .chapter-badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:3px 10px;font-size:10px;font-weight:700;
+      letter-spacing:1.5px;text-transform:uppercase;
+      margin-bottom:20px;width:fit-content;
+      border:1px solid;
+    }
+    .badge-trad{color:var(--d-sum);border-color:var(--d-sum);background:rgba(240,136,62,.08)}
+    .badge-lcm{color:var(--d-fresh);border-color:var(--d-fresh);background:rgba(86,211,100,.08)}
+    .badge-ff{color:var(--d-tool);border-color:var(--d-tool);background:rgba(210,168,255,.08)}
+    .badge-enter{color:var(--d-fresh);border-color:var(--d-fresh);background:rgba(86,211,100,.12)}
+
+    .chapter-title{
+      font-size:clamp(22px,2.8vw,34px);
+      font-weight:700;color:var(--d-text);
+      line-height:1.25;letter-spacing:-.5px;
+      margin-bottom:18px;
+    }
+    .chapter-body{
+      font-size:13px;color:var(--d-muted);
+      line-height:1.85;max-width:380px;
+    }
+    .chapter-body p{margin-bottom:12px}
+
+    /* Compaction prompt box shown in chapter 5 */
+    .compact-prompt-box{
+      margin-top:20px;
+      background:rgba(240,136,62,.06);
+      border:1px solid rgba(240,136,62,.2);
+      padding:14px 16px;
+      font-size:11.5px;color:var(--d-muted);
+      line-height:1.75;
+    }
+    .cpb-label{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--d-sum);margin-bottom:8px}
+    .cpb-highlight{color:var(--d-sum)}
+
+    /* Recover section sub-items */
+    .chapter-sub-items{margin-top:16px;display:flex;flex-direction:column;gap:6px}
+    .chapter-sub-item{font-size:12px;color:var(--d-dim);display:flex;align-items:center;gap:6px}
+    .chapter-sub-item::before{content:'○';color:var(--d-dim);flex-shrink:0}
+
+    /* Right: sticky context window panel */
+    .demo-panel-wrap{
+      flex:1;
+      position:sticky;
+      top:calc(48px + 48px); /* nav + dots bar */
+      height:calc(100vh - 48px - 48px);
+      overflow-y:auto;
+      padding:20px 28px 20px 0;
+      display:flex;flex-direction:column;gap:16px;
+    }
+
+    /* ── CONTEXT WINDOW panel ──────────────────────────────────────── */
+    .ctx-window{
+      background:var(--d-surface);
+      border:1px solid var(--d-border);
+      overflow:hidden;
+      flex-shrink:0;
+    }
+
+    /* Warning banner (shown when threshold crossed) */
+    .ctx-warning-banner{
+      padding:10px 16px;
+      background:rgba(240,136,62,.12);
+      border-bottom:1px solid var(--d-warn);
+      font-size:12px;color:var(--d-warn);
+      display:flex;align-items:center;gap:8px;
+      display:none;
+    }
+    .ctx-warning-banner.show{display:flex}
+
+    /* Panel header */
+    .ctx-header{
+      padding:12px 16px;
+      border-bottom:1px solid var(--d-border);
+      display:flex;align-items:center;justify-content:space-between;
+    }
+    .ctx-title{font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--d-text);text-transform:uppercase}
+    .ctx-mode-badge{
+      font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+      padding:2px 8px;border:1px solid;
+    }
+    .ctx-mode-badge.trad{color:var(--d-sum);border-color:var(--d-sum)}
+    .ctx-mode-badge.lcm{color:var(--d-fresh);border-color:var(--d-fresh)}
+
+    /* Budget bar */
+    .ctx-budget-section{padding:10px 16px 12px;border-bottom:1px solid var(--d-border)}
+    .ctx-budget-row{display:flex;justify-content:space-between;margin-bottom:8px}
+    .ctx-budget-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--d-muted)}
+    .ctx-budget-val{font-size:11px;font-variant-numeric:tabular-nums;transition:color .4s}
+    .ctx-budget-bar-outer{height:5px;background:rgba(255,255,255,.06);position:relative;overflow:visible}
+    .ctx-budget-bar-fill{position:absolute;left:0;top:0;bottom:0;transition:width .7s var(--easing),background .5s}
+    .ctx-threshold-marker{
+      position:absolute;top:-8px;
+      width:1px;background:rgba(255,255,255,.2);height:21px;
+      display:flex;flex-direction:column;align-items:center;
+    }
+    .ctx-threshold-marker::after{content:'▲ threshold';position:absolute;bottom:-18px;font-size:9px;color:var(--d-dim);letter-spacing:.3px;white-space:nowrap;transform:translateX(-50%)}
+
+    /* Messages area */
+    .ctx-messages{padding:12px 16px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+    .ctx-empty{font-size:13px;color:var(--d-dim);text-align:center;padding:32px 0}
+
+    /* Individual message card */
+    .ctx-msg{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--d-border);
+      padding:10px 12px;
+      display:flex;gap:10px;
+      align-items:flex-start;
+      transition:opacity .4s,max-height .5s,margin .4s;
+      overflow:hidden;
+    }
+    .ctx-msg.fading{opacity:.25;background:rgba(255,255,255,.005)}
+    .ctx-msg-avatar{
+      width:22px;height:22px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px;
+      border:1px solid;
+    }
+    .avatar-u{color:var(--d-user);border-color:var(--d-user);background:rgba(56,139,253,.12)}
+    .avatar-a{color:var(--d-asst);border-color:var(--d-asst);background:rgba(63,185,80,.1)}
+    .ctx-msg-right{flex:1;min-width:0}
+    .ctx-msg-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+    .ctx-msg-turn{font-size:10px;color:var(--d-muted)}
+    .ctx-msg-right-meta{display:flex;align-items:center;gap:8px}
+    .ctx-fresh-tag{
+      font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+      padding:1px 6px;border:1px solid var(--d-fresh);color:var(--d-fresh);
+      background:rgba(86,211,100,.08);
+    }
+    .ctx-tok{font-size:10px;color:var(--d-muted)}
+    .ctx-msg-text{font-size:12px;color:var(--d-text);line-height:1.6}
+
+    /* Summary node card (orange border) */
+    .ctx-summary-node{
+      background:rgba(240,136,62,.05);
+      border:1px solid var(--d-sum);
+      padding:10px 12px;
+      transition:opacity .4s;
+    }
+    .ctx-sum-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+    .ctx-sum-badge{
+      font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+      padding:1px 6px;border:1px solid var(--d-sum);color:var(--d-sum);background:rgba(240,136,62,.08);
+    }
+    .ctx-sum-badge.lossy{border-color:var(--d-over);color:var(--d-over);background:rgba(255,123,114,.08)}
+    .ctx-sum-id{font-size:10px;color:var(--d-sum);font-weight:700}
+    .ctx-sum-id.lossy{color:var(--d-over)}
+    .ctx-sum-tok{font-size:10px;color:var(--d-muted);margin-left:auto}
+    .ctx-sum-meta{font-size:10px;color:var(--d-dim);margin-bottom:6px}
+    .ctx-sum-lossy-tag{font-size:9px;color:var(--d-over)}
+    .ctx-sum-text{font-size:12px;color:var(--d-muted);line-height:1.65}
+
+    /* Tool call block */
+    .ctx-tool-block{
+      background:rgba(210,168,255,.06);
+      border:1px solid rgba(210,168,255,.2);
+      padding:10px 12px;
+    }
+    .ctx-tool-header{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--d-tool);margin-bottom:6px}
+    .ctx-tool-call{font-size:12px;color:var(--d-muted);margin-bottom:6px}
+    .ctx-tool-fn{color:var(--d-tool)}
+    .ctx-tool-key{color:var(--d-user)}.ctx-tool-val{color:var(--amber)}
+    .ctx-tool-result{font-size:11.5px;color:var(--d-asst);border-top:1px solid rgba(210,168,255,.1);padding-top:6px;margin-top:4px}
+
+    /* Fresh tail indicator */
+    .ctx-fresh-footer{
+      padding:8px 16px;
+      border-top:1px solid var(--d-border);
+      font-size:11px;color:var(--d-muted);
+      display:flex;align-items:center;gap:6px;
+      background:rgba(86,211,100,.03);
+      display:none;
+    }
+    .ctx-fresh-footer.show{display:flex}
+    .ctx-fresh-dot{width:6px;height:6px;border-radius:50%;background:var(--d-fresh)}
+
+    /* ── SUMMARY DAG panel ─────────────────────────────────────────── */
+    .dag-panel{
+      background:var(--d-surface);
+      border:1px solid var(--d-border);
+      overflow:hidden;
+      display:none;
+    }
+    .dag-panel.show{display:block}
+    .dag-panel-header{
+      padding:10px 16px;border-bottom:1px solid var(--d-border);
+      display:flex;justify-content:space-between;align-items:center;
+    }
+    .dag-panel-title{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--d-text)}
+    .dag-panel-count{font-size:11px;color:var(--d-muted)}
+    .dag-graph{padding:16px;display:flex;flex-direction:column;gap:0}
+    .dag-row{display:flex;gap:12px;flex-wrap:wrap}
+    .dag-row+.dag-row{margin-top:0}
+
+    /* Orange summary node box */
+    .dag-node-box{
+      border:1px solid var(--d-sum);
+      background:rgba(240,136,62,.05);
+      padding:10px 12px;min-width:180px;
+      position:relative;
+    }
+    .dag-node-box-title{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--d-sum);margin-bottom:4px}
+    .dag-node-box-id{font-size:11px;color:var(--d-text);font-weight:700;margin-bottom:2px}
+    .dag-node-box-meta{font-size:10px;color:var(--d-muted)}
+
+    /* Dashed raw messages box */
+    .dag-raw-box{
+      border:1px dashed rgba(56,139,253,.4);
+      background:rgba(56,139,253,.04);
+      padding:8px 12px;min-width:150px;
+    }
+    .dag-raw-label{font-size:10px;color:var(--d-user);font-weight:700;margin-bottom:2px}
+    .dag-raw-meta{font-size:10px;color:var(--d-muted)}
+
+    /* Vertical connector between node and raw box */
+    .dag-connector-vert{
+      width:1px;height:20px;background:rgba(255,255,255,.1);
+      margin:0 0 0 24px;
+    }
+
+    /* D1 condensation node */
+    .dag-node-box.d1{border-color:var(--d-sum-d1);background:rgba(255,123,114,.05)}
+    .dag-node-box.d1 .dag-node-box-title{color:var(--d-sum-d1)}
+
+    /* Animation */
+    .fade-in{animation:fadeIn .4s var(--easing) both}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+    /* ── Mobile: demo collapses to single column ──────────────────── */
+    @media(max-width:860px){
+      .demo-body{flex-direction:column}
+      .demo-chapters{width:100%;min-width:0;padding:0 20px 60px}
+      .demo-chapter{min-height:auto;padding:48px 0}
+      .demo-panel-wrap{position:relative;top:0;height:auto;padding:20px 20px 32px;overflow:visible}
+      .demo-chapter-dots{padding:12px 20px}
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       VIZ SECTION — dashboard mockup
+    ════════════════════════════════════════════════════════════════ */
+    .viz-wrap{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+    @media(max-width:800px){.viz-wrap{grid-template-columns:1fr}}
+
+    /* The dashboard mockup panel */
+    .viz-mock{
+      background:#0f1117;border:1px solid #2e3250;overflow:hidden;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .viz-mock-bar{
+      background:#1a1d2e;border-bottom:1px solid #2e3250;
+      padding:9px 14px;display:flex;align-items:center;gap:10px;
+    }
+    .vm-logo{font-size:12px;font-weight:700;color:#6366f1;letter-spacing:-.3px}
+    .vm-logo span{color:#4B5563;font-weight:400}
+    .vm-badge{font-size:9px;font-weight:700;padding:1px 7px;background:#3730a3;color:#c7d2fe;border-radius:999px}
+    .vm-dot-live{width:6px;height:6px;border-radius:50%;background:#10b981;box-shadow:0 0 5px #10b981;flex-shrink:0;animation:pulse-dot 2s ease infinite}
+    @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.5}}
+    .vm-live-label{font-size:10px;color:#10b981}
+    .vm-stats{margin-left:auto;display:flex;gap:14px}
+    .vm-stat{text-align:right}
+    .vm-stat-label{font-size:9px;color:#4B5563;display:block;text-transform:uppercase;letter-spacing:.4px}
+    .vm-stat-val{font-size:11px;font-weight:700;color:#e2e8f0}
+
+    .viz-mock-body{padding:10px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto;gap:8px}
+    .vm-panel{background:#1a1d2e;border:1px solid #2e3250;border-radius:4px;overflow:hidden}
+    .vm-panel-head{padding:6px 10px;border-bottom:1px solid #2e3250;font-size:9px;color:#7c849c;text-transform:uppercase;letter-spacing:.5px;font-weight:700;display:flex;align-items:center;gap:5px}
+    .vm-panel-body{padding:10px}
+
+    /* Gauge */
+    .vm-gauge-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .vm-gauge-bar-wrap{flex:1;height:6px;background:#242740;border-radius:999px;overflow:hidden}
+    .vm-gauge-bar{height:100%;border-radius:999px;transition:width .6s;background:var(--green)}
+    .vm-gauge-label{font-size:10px;color:#e2e8f0;font-weight:700;white-space:nowrap}
+    .vm-gauge-stats{display:flex;gap:12px}
+    .vm-gs{font-size:10px;color:#7c849c}
+    .vm-gs span{color:#e2e8f0;font-weight:700}
+
+    /* DAG */
+    .vm-dag-depth{margin-bottom:6px}
+    .vm-dag-label{font-size:9px;color:#7c849c;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+    .vm-dag-nodes{display:flex;gap:4px;flex-wrap:wrap}
+    .vm-dag-node{background:#242740;border:1px solid #3730a3;border-radius:3px;padding:4px 7px}
+    .vm-dag-node-id{font-size:9px;color:#6366f1}
+    .vm-dag-node-tok{font-size:10px;font-weight:700;color:#e2e8f0}
+
+    /* Feed */
+    .vm-msg{border-radius:3px;padding:5px 7px;font-size:10px;margin-bottom:4px;border-left:2px solid transparent}
+    .vm-msg.u{border-color:#3b82f6;background:rgba(59,130,246,.06)}
+    .vm-msg.a{border-color:#8b5cf6;background:rgba(139,92,246,.06)}
+    .vm-msg-role{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
+    .vm-msg-role.u{color:#3b82f6}.vm-msg-role.a{color:#8b5cf6}
+    .vm-msg-text{color:#9CA3AF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* Timeline */
+    .vm-event{border-radius:3px;padding:5px 7px;font-size:10px;margin-bottom:4px;border-left:2px solid var(--border);background:#242740}
+    .vm-event.cs{border-color:#f59e0b}
+    .vm-event.ce{border-color:#10b981}
+    .vm-event.na{border-color:#6366f1}
+    .vm-event-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
+    .vm-event-type.cs{color:#f59e0b}.vm-event-type.ce{color:#10b981}.vm-event-type.na{color:#6366f1}
+    .vm-event-detail{color:#7c849c}
+
+    /* Session sidebar */
+    .vm-session-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #2e3250}
+    .vm-session-key{font-size:10px;color:#7c849c}
+    .vm-session-val{font-size:10px;color:#e2e8f0;font-weight:700}
+    .vm-sidebar-col{grid-column:2;grid-row:1/span 3}
+
+    /* Feature list alongside mockup */
+    .viz-features{display:flex;flex-direction:column;gap:20px}
+    .viz-feat{display:flex;gap:14px;align-items:flex-start}
+    .viz-feat-icon{width:32px;height:32px;min-width:32px;background:var(--green-dim);border:1px solid rgba(74,222,128,.2);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--green);flex-shrink:0}
+    .viz-feat-title{font-size:14px;font-weight:700;margin-bottom:3px}
+    .viz-feat-body{font-size:12px;color:var(--fg-muted);line-height:1.75}
+    .viz-feat-tag{display:inline-block;margin-top:6px;background:var(--green-dim);color:var(--green);font-size:10px;padding:2px 8px;border:1px solid rgba(74,222,128,.2)}
+
+    .viz-cmd{margin-top:32px;display:flex;align-items:stretch;background:var(--bg-2);border:1px solid var(--border)}
+    .viz-cmd-prompt{padding:11px 14px;color:var(--green);border-right:1px solid var(--border);font-size:13px}
+    .viz-cmd-text{padding:11px 16px;color:var(--fg);font-size:13px;flex:1}
+    .viz-cmd-text .vc-cmd{color:var(--cyan)}.viz-cmd-text .vc-flag{color:var(--purple)}
+  </style>
+</head>
+<body>
+<div id="scroll-prog"></div>
+
+<nav>
+  <div class="nav-inner">
+    <span class="nav-prompt">◆ openlcm</span>
+    <span class="nav-path"><span class="tp-dir">~/projects/agent</span><span style="color:var(--fg-dim)"> via </span><span class="tp-git">◆ py 3.12</span></span>
+    <ul class="nav-links">
+      <li><a href="#problem">problem</a></li>
+      <li><a href="#demo">demo</a></li>
+      <li><a href="#solution">solution</a></li>
+      <li><a href="#adapters">adapters</a></li>
+      <li><a href="#viz">viz</a></li>
+      <li><a href="#benchmarks">benchmarks</a></li>
+      <li><a href="#quickstart">quickstart</a></li>
+      <li><a href="docs.html">docs</a></li>
+      <li><a href="https://github.com/akshay-eng/OpenLCM" target="_blank" rel="noopener" class="nav-cta">github</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-inner">
+      <div>
+        <div class="hero-label reveal">framework-agnostic lossless context management</div>
+        <h1 class="hero-title reveal r1"><span class="t-green">Unbounded</span><br/>Memory.<br/><span class="t-dim">Bounded</span><br/>Context.</h1>
+        <p class="hero-tagline reveal r2">OpenLCM is a <span class="hl">drop-in Python SDK</span> that gives your AI agents a permanent, searchable, lossless memory — without hitting the context limit. Works with <span class="hl">LangGraph</span>, <span class="hl">CrewAI</span>, <span class="hl">AutoGen</span>, <span class="hl">Google ADK</span> and any Python framework.</p>
+        <div class="hero-actions reveal r3">
+          <a href="#quickstart" class="btn btn-green"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>get started</a>
+          <a href="#demo" class="btn btn-ghost"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>see the demo</a>
+        </div>
+        <div class="hero-install reveal r4">
+          <div class="hero-install-prompt">$</div>
+          <div class="hero-install-cmd">pip install <span class="cmd-pkg">openlcm</span></div>
+        </div>
+      </div>
+      <div class="reveal r2">
+        <div class="term-window">
+          <div class="term-bar"><div class="term-dots"><div class="term-dot td-r"></div><div class="term-dot td-y"></div><div class="term-dot td-g"></div></div><div class="term-path"><span class="tp-dir">~/agent</span><span style="color:var(--fg-dim)"> via </span><span class="tp-git">◆ py 3.12</span></div></div>
+          <div class="term-body">
+            <span class="tl tl-prompt"><span class="tl-cmd">python3</span> <span class="tl-muted">agent.py</span></span>
+            <span class="tl tl-gap"></span>
+            <span class="tl"><span class="tl-ok">✓</span> <span class="tl-muted">LCM bound · session=</span><span class="tl-str">research-001</span></span>
+            <span class="tl"><span class="tl-ok">✓</span> <span class="tl-muted">context=</span><span class="tl-num">200,000</span> <span class="tl-muted">threshold=</span><span class="tl-num">75%</span></span>
+            <span class="tl tl-gap"></span>
+            <span class="tl"><span class="tl-muted">turn 47 · prompt=</span><span class="tl-warn">148,320 tok (74.2%)</span></span>
+            <span class="tl"><span class="tl-warn">⣾</span> <span class="tl-muted">compaction triggered...</span></span>
+            <span class="tl tl-gap"></span>
+            <span class="tl"><span class="tl-tool">lcm_compress</span><span class="tl-dim">(messages=47, chunk=20k)</span></span>
+            <span class="tl"><span class="tl-dim">  L1 summary · 3,840 → 280 tokens</span></span>
+            <span class="tl"><span class="tl-tool">node_added</span><span class="tl-dim">  D0 #12 · 280t ← 3,840t src</span></span>
+            <span class="tl tl-gap"></span>
+            <span class="tl"><span class="tl-ok">✓</span> <span class="tl-muted">47 msgs → 8 msgs · </span><span class="tl-ok">148K → 14K tokens</span></span>
+            <span class="tl"><span class="tl-ok">✓</span> <span class="tl-muted">all 47 messages recoverable</span></span>
+            <span class="tl tl-gap"></span>
+            <span class="tl tl-prompt"><span class="tl-muted">turn 48 ready</span> <span class="cursor"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PROBLEM ── -->
+<section class="section" id="problem">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── problem ─────────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">Every agent hits<br/>the context cliff.</h2>
+      <p class="cli-sub">LLMs have a hard token limit. As conversations grow, agents either fail silently — or replace old turns with a flat, irreversible summary. Details fall out permanently.</p>
+    </div>
+    <div class="compare-row">
+      <div class="compare-cell bad reveal r1">
+        <div class="cc-label" style="color:var(--red)">✗ without openlcm</div>
+        <div class="cc-title">Lossy Compression</div>
+        <div class="cc-item"><span style="color:var(--red)">—</span><span>Old turns replaced with flat, irreversible summary</span></div>
+        <div class="cc-item"><span style="color:var(--red)">—</span><span>Decisions, constraints, file paths — permanently gone</span></div>
+        <div class="cc-item"><span style="color:var(--red)">—</span><span>No way to recover original content</span></div>
+      </div>
+      <div class="compare-cell good reveal r2">
+        <div class="cc-label" style="color:var(--green)">✓ with openlcm</div>
+        <div class="cc-title">Lossless Retrieval</div>
+        <div class="cc-item"><span style="color:var(--green)">+</span><span>Every message persisted verbatim in SQLite</span></div>
+        <div class="cc-item"><span style="color:var(--green)">+</span><span>Hierarchical DAG — D0 leaf → D1 arc → D2 durable</span></div>
+        <div class="cc-item"><span style="color:var(--green)">+</span><span>Agent drills back with <code>lcm_grep</code>, <code>lcm_expand</code></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     DEMO — losslesscontext.ai layout pattern
+     Left chapters scroll · Right CONTEXT WINDOW panel is sticky
+═══════════════════════════════════════════════════════════════════ -->
+<div class="demo-wrap" id="demo">
+
+  <!-- Sticky chapter dots + label bar -->
+  <div class="demo-chapter-dots" id="chapterDotsBar">
+    <div class="demo-dot" data-ch="0" onclick="jumpChapter(0)"></div>
+    <div class="demo-dot" data-ch="1" onclick="jumpChapter(1)"></div>
+    <div class="demo-dot" data-ch="2" onclick="jumpChapter(2)"></div>
+    <div class="demo-dot" data-ch="3" onclick="jumpChapter(3)"></div>
+    <div class="demo-dot" data-ch="4" onclick="jumpChapter(4)"></div>
+    <div class="demo-dot" data-ch="5" onclick="jumpChapter(5)"></div>
+    <div class="demo-dot" data-ch="6" onclick="jumpChapter(6)"></div>
+    <div class="demo-dot" data-ch="7" onclick="jumpChapter(7)"></div>
+    <span class="demo-chapter-label" id="chapterLabel">↓ Scroll through the demo</span>
+  </div>
+
+  <div class="demo-body">
+
+    <!-- LEFT: chapters that scroll normally -->
+    <div class="demo-chapters" id="demoChapters">
+
+      <!-- Ch 0: Traditional intro -->
+      <div class="demo-chapter" id="ch-0" data-ch="0">
+        <div class="chapter-badge badge-trad">Traditional</div>
+        <div class="chapter-title">Traditional Context Management</div>
+        <div class="chapter-body">
+          <p>A standard LLM setup holds the conversation in a fixed token budget. Every message consumes space. The budget isn't just a hard cap — there needs to be room left over for the model to generate a summary when the time comes.</p>
+          <p>Early on, there's plenty of headroom. Messages accumulate. Tokens tick up.</p>
+        </div>
+      </div>
+
+      <!-- Ch 1: Threshold -->
+      <div class="demo-chapter" id="ch-1" data-ch="1">
+        <div class="chapter-badge badge-trad">Traditional</div>
+        <div class="chapter-title">The Threshold</div>
+        <div class="chapter-body">
+          <p>When context usage crosses a threshold — typically around 80% of the budget — the system fires a summarization call. As many messages as possible are sent to the model in one batch.</p>
+          <p>This call takes 1–2 minutes. The agent is blocked. And the result is just one flat summary.</p>
+        </div>
+      </div>
+
+      <!-- Ch 2: One flat summary -->
+      <div class="demo-chapter" id="ch-2" data-ch="2">
+        <div class="chapter-badge badge-trad">Traditional</div>
+        <div class="chapter-title">One Flat Summary</div>
+        <div class="chapter-body">
+          <p>Everything is replaced by a single summary. Space is reclaimed — but details are lost.</p>
+          <p>A flat summary can't hold the full fidelity of a long conversation. The model will confidently misremember specifics, contradict earlier decisions, or ask again for information it was already given. And there's no way to go back.</p>
+        </div>
+      </div>
+
+      <!-- Ch 3: Enter LCM -->
+      <div class="demo-chapter" id="ch-3" data-ch="3">
+        <div class="chapter-badge badge-enter">↳ Enter LCM</div>
+        <div class="chapter-title">There's a better way.</div>
+        <div class="chapter-body">
+          <p>LCM starts the same way — a conversation accumulating messages — but instead of truncating, it compacts them into layered summaries where nothing is ever lost.</p>
+          <p>Each message is persisted to SQLite with a stable ID. The original is always recoverable.</p>
+        </div>
+      </div>
+
+      <!-- Ch 4: Messages arrive (LCM) -->
+      <div class="demo-chapter" id="ch-4" data-ch="4">
+        <div class="chapter-badge badge-lcm">LCM</div>
+        <div class="chapter-title">Messages Arrive</div>
+        <div class="chapter-body">
+          <p>Each user message and assistant reply appends to the context. Tokens accumulate. Early on there's plenty of headroom.</p>
+          <p>The most recent messages get a <span style="color:var(--d-fresh);font-weight:600">FRESH TAIL</span> marker — they're protected from compaction so the model always sees the latest context verbatim.</p>
+        </div>
+      </div>
+
+      <!-- Ch 5: Compaction -->
+      <div class="demo-chapter" id="ch-5" data-ch="5">
+        <div class="chapter-badge badge-lcm">LCM</div>
+        <div class="chapter-title">Summary Compaction</div>
+        <div class="chapter-body">
+          <p>When usage crosses the threshold, LCM sends the eligible chunk to the model with a structured prompt. A summary node (D0) is created — but the source messages are preserved in the immutable store.</p>
+        </div>
+        <div class="compact-prompt-box">
+          <div class="cpb-label">Compaction Prompt · Depth 0</div>
+          Summarize this conversation segment for future turns.<br/>
+          Preserve decisions, rationale, constraints, active tasks.<br/>
+          Remove repetition and conversational filler.<br/><br/>
+          End with: <span class="cpb-highlight">"Expand for details about: &lt;what was compressed&gt;"</span>
+        </div>
+      </div>
+
+      <!-- Ch 6: Conversation keeps growing -->
+      <div class="demo-chapter" id="ch-6" data-ch="6">
+        <div class="chapter-badge badge-ff">⚡ Fast Forward</div>
+        <div class="chapter-title">The Conversation Keeps Growing</div>
+        <div class="chapter-body">
+          <p>Each new cohort of messages outside the fresh tail automatically triggers another compaction pass. Watch the DAG grow as compactions accumulate.</p>
+          <p>The SUMMARY DAG below the context window shows each depth-0 node, its source range, and the raw messages it compresses.</p>
+        </div>
+        <div class="chapter-sub-items">
+          <div class="chapter-sub-item">sum_01 · Turns 1–4</div>
+          <div class="chapter-sub-item">sum_02 · Turns 5–8</div>
+        </div>
+      </div>
+
+      <!-- Ch 7: Recall from history -->
+      <div class="demo-chapter" id="ch-7" data-ch="7">
+        <div class="chapter-badge badge-lcm">LCM</div>
+        <div class="chapter-title">Recalling from Compacted History</div>
+        <div class="chapter-body">
+          <p>The user asks about something from 8 turns ago — well outside the fresh tail, already compacted into sum_01.</p>
+          <p>The agent calls <code>lcm_expand(node_id=1)</code>. The engine retrieves the original 8 verbatim messages from the immutable store. The answer is complete and exact.</p>
+          <p style="color:var(--d-fresh);margin-top:8px">Nothing was lost. Nothing was slow. The DAG made it instant.</p>
+        </div>
+      </div>
+
+    </div><!-- /demo-chapters -->
+
+    <!-- RIGHT: sticky CONTEXT WINDOW panel -->
+    <div class="demo-panel-wrap" id="demoPanelWrap">
+
+      <!-- Warning banner (shown at threshold) -->
+      <div class="ctx-warning-banner" id="ctxWarning">
+        <span>✗</span>
+        <span id="ctxWarningText">Threshold crossed — summarization will fire</span>
+      </div>
+
+      <!-- CONTEXT WINDOW -->
+      <div class="ctx-window">
+        <div class="ctx-header">
+          <div class="ctx-title">Context Window</div>
+          <div class="ctx-mode-badge trad" id="ctxModeBadge">Traditional</div>
+        </div>
+        <div class="ctx-budget-section">
+          <div class="ctx-budget-row">
+            <span class="ctx-budget-label">Token Budget</span>
+            <span class="ctx-budget-val" id="ctxBudgetVal" style="color:var(--d-budget)">0 / 8,000 (0%)</span>
+          </div>
+          <div class="ctx-budget-bar-outer">
+            <div class="ctx-budget-bar-fill" id="ctxBudgetFill" style="width:0%;background:var(--d-budget)"></div>
+            <div class="ctx-threshold-marker" id="ctxThresholdMarker" style="left:80%"></div>
+          </div>
+        </div>
+        <div class="ctx-messages" id="ctxMessages">
+          <div class="ctx-empty" id="ctxEmpty">Waiting for messages…</div>
+        </div>
+        <div class="ctx-fresh-footer" id="ctxFreshFooter">
+          <div class="ctx-fresh-dot"></div>
+          <span id="ctxFreshText">Last 4 messages protected from compaction (fresh tail)</span>
+        </div>
+      </div>
+
+      <!-- SUMMARY DAG (LCM only) -->
+      <div class="dag-panel" id="dagPanel">
+        <div class="dag-panel-header">
+          <div class="dag-panel-title">Summary DAG</div>
+          <div class="dag-panel-count" id="dagCount">0 d0</div>
+        </div>
+        <div class="dag-graph" id="dagGraph"></div>
+      </div>
+
+    </div><!-- /demo-panel-wrap -->
+  </div><!-- /demo-body -->
+</div><!-- /demo-wrap -->
+
+<!-- ── SOLUTION ── -->
+<section class="section" id="solution">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── solution ────────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">A hierarchical DAG<br/>that never forgets.</h2>
+      <p class="cli-sub">Old messages become D0 leaf nodes. Leaf nodes condense into D1 session arcs. Arcs condense into D2 durable history. Active context stays bounded. Everything stays queryable.</p>
+    </div>
+    <div class="dag-grid">
+      <div class="dag-cli reveal">
+        <div class="dag-cli-head"><div class="term-dots"><div class="term-dot td-r"></div><div class="term-dot td-y"></div><div class="term-dot td-g"></div></div><span>lcm_describe() · session=research-001</span></div>
+        <div class="dag-cli-body" style="font-size:12px;line-height:1.9">
+          <div style="color:var(--fg-dim);font-size:11px;margin-bottom:8px">DAG structure (47 msgs → 12 nodes → 14.2K active tokens)</div>
+          <div style="color:var(--fg-dim);font-size:11px;margin-bottom:4px">─── D2  durable arc ──────────────────</div>
+          <div class="dag-node-line"><span style="color:var(--blue)">◈</span><span style="color:var(--fg-dim)">#12</span><span style="flex:1;color:var(--blue)">full session arc</span><span style="color:var(--fg-muted)">840t / 67K src</span></div>
+          <div class="dag-connector">  ├── condenses ──▶</div>
+          <div style="color:var(--fg-dim);font-size:11px;margin:6px 0 4px">─── D1  session arc ──────────────────</div>
+          <div class="dag-node-line"><span style="color:var(--purple)">◈</span><span style="color:var(--fg-dim)">#7</span><span style="flex:1;color:var(--purple)">morning session</span><span style="color:var(--fg-muted)">380t / 28K src</span></div>
+          <div class="dag-node-line"><span style="color:var(--purple)">◈</span><span style="color:var(--fg-dim)">#9</span><span style="flex:1;color:var(--purple)">afternoon session</span><span style="color:var(--fg-muted)">420t / 31K src</span></div>
+          <div class="dag-connector">  ├── condenses ──▶</div>
+          <div style="color:var(--fg-dim);font-size:11px;margin:6px 0 4px">─── D0  leaf (recent) ────────────────</div>
+          <div class="dag-node-line"><span style="color:var(--green)">◈</span><span style="color:var(--fg-dim)">#10</span><span style="flex:1;color:var(--green)">turns 37–42</span><span style="color:var(--fg-muted)">95t</span></div>
+          <div class="dag-node-line"><span style="color:var(--green)">◈</span><span style="color:var(--fg-dim)">#11</span><span style="flex:1;color:var(--green)">turns 43–46</span><span style="color:var(--fg-muted)">88t</span></div>
+          <div class="dag-connector">  └── fresh tail: turns 47–50 (raw)</div>
+          <div style="margin-top:12px;padding:8px 10px;background:var(--green-dim);border:1px solid rgba(74,222,128,.2);font-size:11px"><span style="color:var(--green)">active context</span><span style="color:var(--fg-dim)"> = system + D2(#12) + tail(turns 47-50)</span></div>
+        </div>
+      </div>
+      <div class="step-list reveal r1">
+        <div class="step-li"><div class="step-num-cli">1</div><div><h4>Ingest</h4><p>Every message written to SQLite with FTS5 indexing. Stable <code>store_id</code>. Nothing discarded.</p><span class="step-tag">MessageStore · SQLite · FTS5</span></div></div>
+        <div class="step-li"><div class="step-num-cli">2</div><div><h4>Compact</h4><p>When pressure crosses threshold, oldest messages are summarized into D0 leaf nodes. 3-level escalation: L1 detail → L2 bullets → L3 deterministic.</p><span class="step-tag">3-level escalation · circuit breaker</span></div></div>
+        <div class="step-li"><div class="step-num-cli">3</div><div><h4>Condense</h4><p>When enough D0 nodes accumulate, they merge into D1 arcs. D1s merge into D2 durable history. Depth is unbounded.</p><span class="step-tag">DAG · D0 → D1 → D2 → ...</span></div></div>
+        <div class="step-li"><div class="step-num-cli">4</div><div><h4>Retrieve</h4><p>Agent uses <code>lcm_grep</code> (FTS5), <code>lcm_expand</code> (recover source), or <code>lcm_expand_query</code> (synthesize) to access any past moment.</p><span class="step-tag">lcm_grep · lcm_expand · lcm_expand_query</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── GUARANTEES ── -->
+<section class="section" id="guarantees">
+  <div class="wrap">
+    <div class="reveal" style="text-align:center">
+      <div class="cli-head"># ── guarantees ──────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">Three properties. Always.</h2>
+    </div>
+    <div class="guarantees-grid">
+      <div class="g-cell reveal r1"><div class="g-head"><span class="g-sym">◈</span><div class="g-title">Lossless Retrievability</div></div><p class="g-body">Every message persisted with stable <code>store_id</code>. Recoverable even if compacted 10 sessions ago.</p><span class="g-tag">lcm_expand · lcm_grep · lcm_load_session</span></div>
+      <div class="g-cell reveal r2"><div class="g-head"><span class="g-sym">✓</span><div class="g-title">Deterministic Convergence</div></div><p class="g-body">Summarization always terminates. L1 → L2 → L3 deterministic truncation. Circuit breaker prevents retry storms.</p><span class="g-tag">L1 → L2 → L3 · SummaryCircuitBreaker</span></div>
+      <div class="g-cell reveal r3"><div class="g-head"><span class="g-sym">⚡</span><div class="g-title">Zero-Cost Continuity</div></div><p class="g-body">Short conversations pay zero overhead. Compaction only fires when the configurable threshold is exceeded.</p><span class="g-tag">LCM_CONTEXT_THRESHOLD=0.75</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ADAPTERS ── -->
+<section class="section" id="adapters">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── adapters ────────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">Works with your<br/>existing stack.</h2>
+      <p class="cli-sub">Framework-agnostic. One import, zero changes to your agent logic.</p>
+    </div>
+    <div class="adapters-grid">
+      <div class="adapter-cell reveal r1"><div class="adapter-head"><div class="adapter-icon">LG</div><div class="adapter-name">LangGraph</div><div class="adapter-iface">BaseCheckpointSaver</div></div><div class="adapter-body"><p class="adapter-desc">Replace MemorySaver with LCMCheckpointer. thread_id maps to session_id.</p><div class="code-snippet"><span class="cs-kw">from</span> <span class="cs-imp">openlcm.adapters.langgraph</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMCheckpointer</span><br/>graph = <span class="cs-cls">StateGraph</span>(MyState).compile(<br/>&nbsp;&nbsp;checkpointer=<span class="cs-cls">LCMCheckpointer</span>(engine))</div></div></div>
+      <div class="adapter-cell reveal r2"><div class="adapter-head"><div class="adapter-icon">CR</div><div class="adapter-name">CrewAI</div><div class="adapter-iface">StorageBackend</div></div><div class="adapter-body"><p class="adapter-desc">Plug LCMStorage into LongTermMemory. Auto-compacted as sessions grow.</p><div class="code-snippet"><span class="cs-kw">from</span> <span class="cs-imp">openlcm.adapters.crewai</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMStorage</span><br/>crew = <span class="cs-cls">Crew</span>(memory=<span class="cs-kw">True</span>,<br/>&nbsp;&nbsp;long_term_memory=<span class="cs-cls">LongTermMemory</span>(storage=<span class="cs-cls">LCMStorage</span>(engine)))</div></div></div>
+      <div class="adapter-cell reveal r1"><div class="adapter-head"><div class="adapter-icon">AG</div><div class="adapter-name">AutoGen</div><div class="adapter-iface">ChatCompletionContext</div></div><div class="adapter-body"><p class="adapter-desc">LCMContext subclasses AutoGen's model context. Fully transparent to agent code.</p><div class="code-snippet"><span class="cs-kw">from</span> <span class="cs-imp">openlcm.adapters.autogen</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMContext</span><br/>agent = <span class="cs-cls">AssistantAgent</span>(<span class="cs-str">"assistant"</span>,<br/>&nbsp;&nbsp;model_context=<span class="cs-cls">LCMContext</span>(engine))</div></div></div>
+      <div class="adapter-cell reveal r2"><div class="adapter-head"><div class="adapter-icon">GK</div><div class="adapter-name">Google ADK</div><div class="adapter-iface">BaseSessionService</div></div><div class="adapter-body"><p class="adapter-desc">LCMSessionService replaces the default session service. Events compressed automatically.</p><div class="code-snippet"><span class="cs-kw">from</span> <span class="cs-imp">openlcm.adapters.google_adk</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMSessionService</span><br/>runner = <span class="cs-cls">Runner</span>(agent=my_agent,<br/>&nbsp;&nbsp;session_service=<span class="cs-cls">LCMSessionService</span>(engine))</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── VISUALIZATION ── -->
+<section class="section" id="viz">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── visualization ────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">See every token.<br/>In real time.</h2>
+      <p class="cli-sub">Run <code>openlcm viz</code> to open a live browser dashboard. Watch DAG nodes form as compactions fire, token pressure build turn by turn, and drill into any summary node.</p>
+    </div>
+
+    <div class="viz-wrap">
+
+      <!-- LEFT: dashboard mockup -->
+      <div class="reveal r1">
+        <div class="viz-mock">
+          <!-- Mockup header bar -->
+          <div class="viz-mock-bar">
+            <div class="vm-logo">Open<span>LCM</span></div>
+            <div class="vm-badge">Live</div>
+            <div class="vm-dot-live"></div>
+            <span class="vm-live-label">Connected</span>
+            <div class="vm-stats">
+              <div class="vm-stat"><span class="vm-stat-label">Compressions</span><span class="vm-stat-val" id="vm-cmp">3</span></div>
+              <div class="vm-stat"><span class="vm-stat-label">DAG Nodes</span><span class="vm-stat-val" id="vm-nodes">5</span></div>
+              <div class="vm-stat"><span class="vm-stat-label">Messages</span><span class="vm-stat-val" id="vm-msgs">47</span></div>
+            </div>
+          </div>
+
+          <!-- Mockup grid (5 panels) -->
+          <div class="viz-mock-body">
+
+            <!-- 1. Token Pressure -->
+            <div class="vm-panel" style="grid-column:1;grid-row:1">
+              <div class="vm-panel-head">⬡ Token Pressure</div>
+              <div class="vm-panel-body">
+                <div class="vm-gauge-row">
+                  <div class="vm-gauge-bar-wrap">
+                    <div class="vm-gauge-bar" id="vm-gauge-bar" style="width:62%;background:#10b981"></div>
+                  </div>
+                  <div class="vm-gauge-label" id="vm-gauge-pct" style="color:#10b981">62.0%</div>
+                </div>
+                <div class="vm-gauge-stats">
+                  <div class="vm-gs">Prompt <span id="vm-prompt">124K</span></div>
+                  <div class="vm-gs">Threshold <span style="color:#f59e0b">150K</span></div>
+                  <div class="vm-gs">Max <span>200K</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. DAG Viewer -->
+            <div class="vm-panel" style="grid-column:1;grid-row:2">
+              <div class="vm-panel-head">◈ Summary DAG</div>
+              <div class="vm-panel-body">
+                <div class="vm-dag-depth">
+                  <div class="vm-dag-label">D1 — Session Arc</div>
+                  <div class="vm-dag-nodes">
+                    <div class="vm-dag-node" style="border-color:#8b5cf6"><div class="vm-dag-node-id" style="color:#8b5cf6">#3</div><div class="vm-dag-node-tok">840t</div></div>
+                  </div>
+                </div>
+                <div class="vm-dag-depth">
+                  <div class="vm-dag-label">D0 — Leaf (Recent)</div>
+                  <div class="vm-dag-nodes" id="vm-dag-nodes">
+                    <div class="vm-dag-node"><div class="vm-dag-node-id">#4</div><div class="vm-dag-node-tok">280t</div></div>
+                    <div class="vm-dag-node"><div class="vm-dag-node-id">#5</div><div class="vm-dag-node-tok">310t</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Session sidebar (spans rows) -->
+            <div class="vm-panel vm-sidebar-col">
+              <div class="vm-panel-head">◎ Session</div>
+              <div class="vm-panel-body">
+                <div class="vm-session-row"><span class="vm-session-key">Session</span><span class="vm-session-val">research-001</span></div>
+                <div class="vm-session-row"><span class="vm-session-key">Platform</span><span class="vm-session-val">langgraph</span></div>
+                <div class="vm-session-row"><span class="vm-session-key">Threshold</span><span class="vm-session-val" style="color:#f59e0b">75%</span></div>
+                <div class="vm-session-row"><span class="vm-session-key">Fresh tail</span><span class="vm-session-val">64 msgs</span></div>
+                <div class="vm-session-row" style="border:none"><span class="vm-session-key">DB size</span><span class="vm-session-val" style="color:#10b981">1.2 MB</span></div>
+                <div style="margin-top:10px;padding:7px 8px;background:#242740;border:1px solid #2e3250;border-radius:3px">
+                  <div style="font-size:9px;color:#7c849c;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Sessions</div>
+                  <div style="font-size:10px;padding:4px 6px;background:#3730a3;color:#c7d2fe;border-radius:2px;margin-bottom:3px">research-001 · 47 msgs</div>
+                  <div style="font-size:10px;padding:4px 6px;color:#7c849c">dev-session-02 · 18 msgs</div>
+                </div>
+                <div style="margin-top:10px">
+                  <input style="width:100%;padding:5px 8px;background:#242740;border:1px solid #2e3250;border-radius:3px;color:#e2e8f0;font-size:11px;font-family:inherit;outline:none" placeholder="Search history…" value="OAuth redirect" readonly />
+                  <div style="margin-top:4px;padding:5px 7px;background:#242740;border:1px solid #2e3250;border-radius:3px;font-size:10px">
+                    <div style="color:#7c849c;text-transform:uppercase;letter-spacing:.3px;font-size:9px;margin-bottom:2px">ASSISTANT · Turn 2</div>
+                    <div style="color:#e2e8f0">…set the redirect URI to <mark style="background:rgba(99,102,241,.3);color:#e2e8f0;border-radius:1px">http://localhost:3000/callback</mark>…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Message Feed -->
+            <div class="vm-panel" style="grid-column:1;grid-row:3">
+              <div class="vm-panel-head">≡ Message Feed</div>
+              <div class="vm-panel-body" style="padding:8px">
+                <div class="vm-msg a"><div class="vm-msg-role a">assistant</div><div class="vm-msg-text">RBAC can be layered on top of your OAuth2 setup…</div></div>
+                <div class="vm-msg u"><div class="vm-msg-role u">user</div><div class="vm-msg-text">How should I structure the permissions matrix?</div></div>
+                <div class="vm-msg a" id="vm-latest-msg"><div class="vm-msg-role a">assistant</div><div class="vm-msg-text">A resource × action matrix works well here…</div></div>
+              </div>
+            </div>
+
+            <!-- 5. Event Timeline -->
+            <div class="vm-panel" style="grid-column:2;grid-row:3">
+              <div class="vm-panel-head">⏱ Event Timeline</div>
+              <div class="vm-panel-body" style="padding:8px" id="vm-timeline">
+                <div class="vm-event ce"><div class="vm-event-type ce">compaction end</div><div class="vm-event-detail">12 → 4 msgs · 48K → 4.2K tok</div></div>
+                <div class="vm-event na"><div class="vm-event-type na">node added</div><div class="vm-event-detail">D0 #5 · 310t ← 3,840t src</div></div>
+                <div class="vm-event cs"><div class="vm-event-type cs">compaction start</div><div class="vm-event-detail">16 msgs · 62K tokens</div></div>
+              </div>
+            </div>
+
+          </div><!-- /viz-mock-body -->
+        </div><!-- /viz-mock -->
+
+        <!-- openlcm viz command -->
+        <div class="viz-cmd reveal r2" style="margin-top:12px">
+          <div class="viz-cmd-prompt">$</div>
+          <div class="viz-cmd-text"><span class="vc-cmd">openlcm</span> viz <span class="vc-flag">--port</span> 7842</div>
+        </div>
+        <div style="font-size:11px;color:var(--fg-dim);margin-top:6px;padding-left:4px">
+          Opens <code>http://localhost:7842</code> · auto-refreshes · zero config
+        </div>
+      </div>
+
+      <!-- RIGHT: feature descriptions -->
+      <div class="viz-features reveal r2">
+        <div class="viz-feat">
+          <div class="viz-feat-icon">⬡</div>
+          <div>
+            <div class="viz-feat-title">Token Pressure Gauge</div>
+            <div class="viz-feat-body">Animated bar tracking live prompt token count against the compaction threshold and context maximum. Turns green → amber → red as pressure builds.</div>
+            <span class="viz-feat-tag">real-time · color-coded · threshold marker</span>
+          </div>
+        </div>
+        <div class="viz-feat">
+          <div class="viz-feat-icon">◈</div>
+          <div>
+            <div class="viz-feat-title">Summary DAG Viewer</div>
+            <div class="viz-feat-body">Live tree of all DAG nodes grouped by depth. Each card shows token count and compression ratio. Hover any node to preview its summary text.</div>
+            <span class="viz-feat-tag">D0 · D1 · D2 · expandable preview</span>
+          </div>
+        </div>
+        <div class="viz-feat">
+          <div class="viz-feat-icon">≡</div>
+          <div>
+            <div class="viz-feat-title">Message Feed</div>
+            <div class="viz-feat-body">Scrolling live view of recent messages with role badges, token estimates, and compacted-into-node markers. New messages animate in as they arrive.</div>
+            <span class="viz-feat-tag">user · assistant · tool · system</span>
+          </div>
+        </div>
+        <div class="viz-feat">
+          <div class="viz-feat-icon">⏱</div>
+          <div>
+            <div class="viz-feat-title">Compaction Timeline</div>
+            <div class="viz-feat-body">Chronological event log of every lifecycle event: <code>session_bound</code>, <code>compaction_start</code>, <code>node_added</code>, <code>node_condensed</code>, <code>compaction_end</code>, and <code>token_pressure</code>.</div>
+            <span class="viz-feat-tag">SSE stream · before/after stats</span>
+          </div>
+        </div>
+        <div class="viz-feat">
+          <div class="viz-feat-icon">◎</div>
+          <div>
+            <div class="viz-feat-title">Session Sidebar</div>
+            <div class="viz-feat-body">Switch between stored sessions, inspect config (threshold, fresh tail, model), and run full-text FTS5 search across the entire immutable message history — including content already compacted into DAG nodes.</div>
+            <span class="viz-feat-tag">session switcher · lcm_grep · FTS5</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /viz-wrap -->
+  </div>
+</section>
+
+<!-- ── BENCHMARKS ── -->
+<section class="section" id="benchmarks">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── benchmarks ──────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">Proven at scale.</h2>
+      <p class="cli-sub">OOLONG benchmark (Opus 4.6). 8K to 1M token contexts. LCM advantage begins at 32K+.</p>
+    </div>
+    <div style="margin-top:40px" class="reveal">
+      <table class="bench-table">
+        <thead><tr><th>context</th><th>openlcm (volt)</th><th>claude code</th><th>delta</th><th>visual</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--fg-muted)">8K–16K</td><td class="td-lcm">~equal</td><td style="color:var(--fg-muted)">~equal</td><td style="color:var(--fg-dim)">—</td><td><div style="display:flex;gap:6px"><div class="bbm" style="width:50%"></div></div></td></tr>
+          <tr><td style="color:var(--fg-muted)">32K</td><td class="td-lcm">+12.4</td><td style="color:var(--fg-muted)">+8.1</td><td style="color:var(--green)">+4.3</td><td><div style="display:flex;gap:6px"><div class="bbm" id="b32" style="width:0%"></div></div></td></tr>
+          <tr><td style="color:var(--fg-muted)">128K</td><td class="td-lcm">+28.6</td><td style="color:var(--fg-muted)">+21.4</td><td style="color:var(--green)">+7.2</td><td><div style="display:flex;gap:6px"><div class="bbm" id="b128" style="width:0%"></div></div></td></tr>
+          <tr><td style="color:var(--fg-muted)">512K</td><td class="td-lcm">+42.4</td><td style="color:var(--fg-muted)">+29.8</td><td style="color:var(--green)">+12.6</td><td><div style="display:flex;gap:6px"><div class="bbm" id="b512" style="width:0%"></div></div></td></tr>
+          <tr><td style="color:var(--fg-muted)">1M</td><td class="td-lcm">+51.3</td><td style="color:var(--fg-muted)">+47.0</td><td style="color:var(--green)">+4.3</td><td><div style="display:flex;gap:6px"><div class="bbm" id="b1m" style="width:0%"></div></div></td></tr>
+          <tr style="border-top:2px solid var(--border)"><td style="font-weight:700">avg all ctx</td><td class="td-lcm" style="font-size:15px">74.8</td><td style="color:var(--fg-muted);font-size:15px">70.3</td><td style="color:var(--green);font-weight:700">+4.5</td><td><div style="display:flex;gap:6px"><div class="bbm" id="bavg" style="width:0%"></div></div></td></tr>
+        </tbody>
+      </table>
+      <div class="bench-stats">
+        <div class="bsc"><div class="bsc-val">74.8</div><div class="bsc-label">avg score (vs 70.3)</div></div>
+        <div class="bsc"><div class="bsc-val">+12.6</div><div class="bsc-label">extra pts at 512K</div></div>
+        <div class="bsc"><div class="bsc-val">32K+</div><div class="bsc-label">LCM advantage starts</div></div>
+        <div class="bsc"><div class="bsc-val">1M</div><div class="bsc-label">max ctx tested</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── QUICKSTART ── -->
+<section class="section" id="quickstart">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="cli-head"># ── quickstart ──────────────────────────────────────────────────────</div>
+      <h2 class="cli-title">Up and running<br/>in 5 minutes.</h2>
+    </div>
+    <div class="qs-grid reveal">
+      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 01</div><div class="qs-title">install</div></div><div class="qs-code"><span class="cs-cmt"># all adapters + providers included</span><br/><span class="cs-kw">$</span> pip install openlcm<br/><br/><span class="cs-cmt"># LangGraph, AutoGen, CrewAI, ADK,</span><br/><span class="cs-cmt"># LlamaIndex, Haystack, OpenAI,</span><br/><span class="cs-cmt"># Anthropic, Gemini — all in one</span></div></div>
+      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 02</div><div class="qs-title">create engine</div></div><div class="qs-code"><span class="cs-kw">from</span> <span class="cs-imp">openlcm</span> <span class="cs-kw">import</span> <span class="cs-cls">LCMEngine</span><br/><span class="cs-kw">from</span> <span class="cs-imp">openlcm.backends.anthropic</span> <span class="cs-kw">import</span> <span class="cs-cls">AnthropicBackend</span><br/><br/>engine = <span class="cs-cls">LCMEngine</span>(<br/>&nbsp;&nbsp;backend=<span class="cs-cls">AnthropicBackend</span>(<br/>&nbsp;&nbsp;&nbsp;&nbsp;model=<span class="cs-str">"claude-haiku-4-5-20251001"</span>),<br/>&nbsp;&nbsp;db_path=<span class="cs-str">"~/.openlcm/myapp.db"</span>,<br/>)<br/>engine.bind_session(<span class="cs-str">"s-1"</span>, context_length=<span class="cs-fn">200_000</span>)</div></div>
+      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 03</div><div class="qs-title">compress each turn</div></div><div class="qs-code"><span class="cs-kw">async def</span> <span class="cs-fn">agent_turn</span>(messages):<br/>&nbsp;&nbsp;<span class="cs-cmt"># LCM fires automatically when needed</span><br/>&nbsp;&nbsp;messages = <span class="cs-kw">await</span> engine.compress(messages)<br/>&nbsp;&nbsp;response = <span class="cs-kw">await</span> llm.chat(messages)<br/>&nbsp;&nbsp;messages.append(response)<br/>&nbsp;&nbsp;engine.update_from_response(response.usage)<br/>&nbsp;&nbsp;<span class="cs-kw">return</span> messages</div></div>
+      <div class="qs-cell"><div class="qs-head"><div class="qs-step">step 04</div><div class="qs-title">use the CLI</div></div><div class="qs-code"><span class="cs-cmt"># live dashboard at localhost:7842</span><br/><span class="cs-kw">$</span> openlcm viz<br/><br/><span class="cs-cmt"># search conversation history</span><br/><span class="cs-kw">$</span> openlcm grep <span class="cs-str">"security constraints"</span><br/><br/><span class="cs-cmt"># session stats + export</span><br/><span class="cs-kw">$</span> openlcm status<br/><span class="cs-kw">$</span> openlcm export session-1 <span class="cs-str">-o</span> convo.json</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <div class="wrap">
+    <div class="cta-inner reveal">
+      <div class="cta-pre">◆ openlcm v0.1.0 · open source · MIT</div>
+      <h2 class="cta-title">Your agents deserve memory<br/>that <span class="cta-accent">lasts</span>.</h2>
+      <p class="cta-sub">Zero required deps. Provider agnostic. Drop-in for any Python framework.</p>
+      <div class="cta-buttons">
+        <a href="#quickstart" class="btn btn-green" style="font-size:14px;padding:13px 26px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>get started</a>
+        <a href="https://github.com/akshay-eng/OpenLCM" class="btn btn-ghost" style="font-size:14px;padding:13px 26px" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>github</a>
+      </div>
+      <div class="cta-install"><div class="ci-prompt">$</div><div class="ci-cmd">pip install <span class="pkg">openlcm</span></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">◆ Open<span class="fl-g">LCM</span></div>
+    <div class="footer-links">
+      <a href="https://github.com/akshay-eng/OpenLCM" target="_blank" rel="noopener">github</a>
+      <a href="docs.html">docs</a>
+      <a href="#adapters">adapters</a>
+      <a href="#viz">viz</a>
+      <a href="#benchmarks">benchmarks</a>
+      <a href="#demo">demo</a>
+    </div>
+    <div class="footer-copy">MIT · LCM paper by Ehrlich &amp; Blackman (Voltropy, 2026)</div>
+  </div>
+</footer>
+
+<script>
+// ── Viz mockup live animation ─────────────────────────────────────────────
+(function(){
+  const steps = [
+    { pct:62, prompt:'124K', color:'#10b981', cmp:3, nodes:5, msgs:47,
+      event:null },
+    { pct:68, prompt:'136K', color:'#10b981', cmp:3, nodes:5, msgs:50,
+      event:{ cls:'na', label:'node added', detail:'D0 #5 · 265t ← 2,180t src' } },
+    { pct:74, prompt:'148K', color:'#f59e0b', cmp:3, nodes:5, msgs:53,
+      event:{ cls:'cs', label:'compaction start', detail:'18 msgs · 61K tokens' } },
+    { pct:22, prompt:'44K',  color:'#10b981', cmp:4, nodes:6, msgs:53,
+      event:{ cls:'ce', label:'compaction end', detail:'18 → 5 msgs · 61K → 4.8K tok' } },
+    { pct:28, prompt:'56K',  color:'#10b981', cmp:4, nodes:6, msgs:56,
+      event:null },
+  ];
+  let i = 0;
+  function tick(){
+    const s = steps[i % steps.length];
+    const bar    = document.getElementById('vm-gauge-bar');
+    const pctEl  = document.getElementById('vm-gauge-pct');
+    const ptEl   = document.getElementById('vm-prompt');
+    const cmpEl  = document.getElementById('vm-cmp');
+    const ndEl   = document.getElementById('vm-nodes');
+    const msgEl  = document.getElementById('vm-msgs');
+    const tl     = document.getElementById('vm-timeline');
+    if(!bar) return;
+    bar.style.width = s.pct + '%';
+    bar.style.background = s.color;
+    pctEl.textContent = s.pct.toFixed(1) + '%';
+    pctEl.style.color = s.color;
+    ptEl.textContent  = s.prompt;
+    cmpEl.textContent = s.cmp;
+    ndEl.textContent  = s.nodes;
+    msgEl.textContent = s.msgs;
+    if(s.event && tl){
+      const div = document.createElement('div');
+      div.className = 'vm-event ' + s.event.cls;
+      div.innerHTML = `<div class="vm-event-type ${s.event.cls}">${s.event.label}</div><div class="vm-event-detail">${s.event.detail}</div>`;
+      tl.insertBefore(div, tl.firstChild);
+      if(tl.children.length > 4) tl.removeChild(tl.lastChild);
+    }
+    i++;
+  }
+  setInterval(tick, 2400);
+})();
+
+// ── Scroll progress ────────────────────────────────────────────────────────
+const prog = document.getElementById('scroll-prog');
+window.addEventListener('scroll', () => {
+  prog.style.width = (window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100).toFixed(1) + '%';
+}, { passive: true });
+
+// ── Reveal observer ────────────────────────────────────────────────────────
+const revObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }), { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
+document.querySelectorAll('.reveal').forEach(el => revObs.observe(el));
+
+// ── Benchmark bars ────────────────────────────────────────────────────────
+const bObs = new IntersectionObserver(es => {
+  if (!es[0].isIntersecting) return;
+  setTimeout(() => { [['b32',43],['b128',72],['b512',100],['b1m',51],['bavg',75]].forEach(([id,w])=>{ const el=document.getElementById(id);if(el)el.style.width=w+'%'; }); }, 300);
+  bObs.disconnect();
+}, { threshold: 0.3 });
+const bSec = document.getElementById('benchmarks');
+if (bSec) bObs.observe(bSec);
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CONTEXT WINDOW DEMO ENGINE
+//  8 chapters — left text scrolls, right panel is sticky + updates
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Message data ──────────────────────────────────────────────────────────
+const TRAD_MSGS = [
+  { role:'U', turn:'Turn 1', tok:'140 tok', text:'Help me plan a 3-week solo trip to Japan. My budget is $3,000.' },
+  { role:'A', turn:'Turn 1', tok:'520 tok', text:"Great! With $3,000 you can do this comfortably. Here's a day-by-day breakdown…" },
+  { role:'U', turn:'Turn 2', tok:'85 tok',  text:'Which cities should I prioritize? I love temples and local food.' },
+  { role:'A', turn:'Turn 2', tok:'490 tok', text:'Focus on Kyoto for temples, Tokyo for food, Osaka for both. The JR Pass…' },
+  { role:'U', turn:'Turn 3', tok:'95 tok',  text:'What about accommodation? Should I use hostels or capsule hotels?' },
+  { role:'A', turn:'Turn 3', tok:'380 tok', text:'Capsule hotels are ideal for solo travellers. Budget ¥3,000–5,000 per night…' },
+];
+
+const LCM_MSGS = [
+  { role:'U', turn:'Turn 1', tok:'180 tok', text:'Can you help me set up the OAuth2 flow?', fresh:false },
+  { role:'A', turn:'Turn 1', tok:'420 tok', text:'Sure! First, install the oauth2-client package…', fresh:false },
+  { role:'U', turn:'Turn 2', tok:'95 tok',  text:'Getting a CORS error on the token endpoint.', fresh:false },
+  { role:'A', turn:'Turn 2', tok:'510 tok', text:'That CORS error usually means the redirect URI…', fresh:false },
+  { role:'U', turn:'Turn 5', tok:'145 tok', text:'Can we add role-based access control next?', fresh:true },
+  { role:'A', turn:'Turn 5', tok:'490 tok', text:'RBAC can be layered on top of your OAuth2 setup…', fresh:true },
+  { role:'U', turn:'Turn 6', tok:'120 tok', text:'How should I structure the permissions matrix?', fresh:true },
+  { role:'A', turn:'Turn 6', tok:'530 tok', text:'A resource × action matrix works well here…', fresh:true },
+];
+
+const LCM_MSGS_2 = [
+  { role:'U', turn:'Turn 9',  tok:'115 tok', text:'Can we add rate limiting to the API endpoints?', fresh:true },
+  { role:'A', turn:'Turn 9',  tok:'455 tok', text:'Rate limiting is best applied at the gateway layer…', fresh:true },
+];
+
+// ── Panel state machine ───────────────────────────────────────────────────
+function msgCard(m, fade) {
+  return `
+    <div class="ctx-msg${fade?' fading':''}">
+      <div class="ctx-msg-avatar avatar-${m.role.toLowerCase()}">${m.role}</div>
+      <div class="ctx-msg-right">
+        <div class="ctx-msg-meta">
+          <span class="ctx-msg-turn">${m.turn}</span>
+          <div class="ctx-msg-right-meta">
+            ${m.fresh ? '<span class="ctx-fresh-tag">FRESH TAIL</span>' : ''}
+            <span class="ctx-tok">${m.tok}</span>
+          </div>
+        </div>
+        <div class="ctx-msg-text">${m.text}</div>
+      </div>
+    </div>`;
+}
+
+function sumNode(id, meta, text, lossy) {
+  return `
+    <div class="ctx-summary-node">
+      <div class="ctx-sum-header">
+        <span class="ctx-sum-badge${lossy?' lossy':''}">SUMMARY · DEPTH 0</span>
+        <span class="ctx-sum-id${lossy?' lossy':''}">${id}</span>
+        ${lossy ? '<span class="ctx-sum-lossy-tag">LOSSY</span>' : ''}
+        <span class="ctx-sum-tok">${lossy?'340 tok':'320 tok'}</span>
+      </div>
+      <div class="ctx-sum-meta">${meta}${lossy ? ' · <span style="color:var(--d-over)">originals discarded</span>' : ''}</div>
+      <div class="ctx-sum-text">${text}</div>
+    </div>`;
+}
+
+function dagNodeHTML(id, label, turns, msgs, cls) {
+  return `<div class="dag-node-box${cls?' '+cls:''}">
+    <div class="dag-node-box-title">Summary · Depth 0 · ${label} tok</div>
+    <div class="dag-node-box-id">${id}</div>
+    <div class="dag-node-box-meta">${turns} ↳ ${msgs} messages compressed</div>
+  </div>`;
+}
+function dagRawHTML(msgs, turns) {
+  return `<div class="dag-raw-box">
+    <div class="dag-raw-label">${msgs} raw messages</div>
+    <div class="dag-raw-meta">${turns}</div>
+  </div>`;
+}
+
+const CHAPTERS = [
+  // Ch 0: Traditional intro
+  {
+    mode:'trad', label:'Traditional Context Management',
+    warning:false,
+    budget:{ pct:33, val:'660 / 8,000 (33%)', color:'var(--d-budget)' },
+    messages: TRAD_MSGS.slice(0,2).map(m=>msgCard(m,false)).join(''),
+    fresh:false, dag:false,
+  },
+  // Ch 1: Threshold
+  {
+    mode:'trad', label:'The Threshold',
+    warning:true, warningText:'✗ Threshold crossed (1,710 / 8,000 tok) — summarization will fire',
+    budget:{ pct:86, val:'1,710 / 8,000 (86%)', color:'var(--d-over)' },
+    messages: TRAD_MSGS.map(m=>msgCard(m,false)).join(''),
+    fresh:false, dag:false,
+  },
+  // Ch 2: One flat summary (traditional, lossy)
+  {
+    mode:'trad', label:'One Flat Summary',
+    warning:true, warningText:'✗ Threshold crossed (1,710 / 8,000 tok) — summarization will fire',
+    budget:{ pct:17, val:'340 / 8,000 (17%)', color:'var(--d-budget)' },
+    messages: sumNode('sum_01','Turns 1–3 · 6 messages','User planning 3-week solo Japan trip with $3,000 budget. Discussed city priorities (Kyoto for temples, Tokyo for food, Osaka for both), JR Pass for transport, and accommodation (capsule hotels preferred at ¥3–5k/night).',true),
+    fresh:false, dag:false,
+  },
+  // Ch 3: Enter LCM
+  {
+    mode:'lcm', label:'There\'s a better way.',
+    warning:false,
+    budget:{ pct:0, val:'0 / 8,000 (0%)', color:'var(--d-budget)' },
+    messages: '<div class="ctx-empty">Waiting for messages…</div>',
+    fresh:false, dag:false,
+  },
+  // Ch 4: Messages arrive (LCM)
+  {
+    mode:'lcm', label:'Messages Arrive',
+    warning:false,
+    budget:{ pct:15, val:'1,205 / 8,000 (15%)', color:'var(--d-budget)' },
+    messages: LCM_MSGS.slice(0,4).map(m=>msgCard({...m,fresh:false},false)).join(''),
+    fresh:false, dag:false,
+  },
+  // Ch 5: First compaction (LCM)
+  {
+    mode:'lcm', label:'Summary Compaction',
+    warning:false,
+    budget:{ pct:20, val:'1,605 / 8,000 (20%)', color:'var(--d-budget)' },
+    messages:
+      sumNode('sum_01','Turns 1–4 ↳ 8 messages compressed','OAuth2 setup: installed client, resolved CORS via redirect URI config, implemented token persistence with localStorage, debugged refresh token flow.',false) +
+      LCM_MSGS.slice(4,8).map(m=>msgCard(m,false)).join(''),
+    fresh:true, freshText:'Last 4 messages protected from compaction (fresh tail)',
+    dag:true,
+    dagCount:'1 d0',
+    dagHTML:`
+      <div class="dag-row fade-in">${dagNodeHTML('sum_01','320','Turns 1–4','8 messages','')}</div>
+      <div class="dag-connector-vert fade-in"></div>
+      <div class="dag-row fade-in">${dagRawHTML('8 raw messages','Turns 1–4')}</div>`,
+  },
+  // Ch 6: Conversation keeps growing (LCM, 2 D0 nodes)
+  {
+    mode:'lcm', label:'The Conversation Keeps Growing',
+    warning:false,
+    budget:{ pct:23, val:'1,840 / 8,000 (23%)', color:'var(--d-budget)' },
+    messages:
+      sumNode('sum_01','Turns 1–4 ↳ 8 messages compressed','OAuth2 setup: installed client, resolved CORS via redirect URI config, implemented token persistence with localStorage, debugged refresh token flow.',false) +
+      sumNode('sum_02','Turns 5–8 ↳ 8 messages compressed','RBAC implementation: resource×action permissions matrix, middleware ordering fixed (auth→RBAC), tests passing. Audit logging added capturing actor, action, and timestamp.',false) +
+      LCM_MSGS_2.map(m=>msgCard(m,false)).join(''),
+    fresh:true, freshText:'Last 4 messages protected from compaction (fresh tail)',
+    dag:true,
+    dagCount:'2 d0',
+    dagHTML:`
+      <div class="dag-row fade-in">
+        ${dagNodeHTML('sum_01','320','Turns 1–4','8 messages','')}
+        ${dagNodeHTML('sum_02','340','Turns 5–8','8 messages','')}
+      </div>
+      <div style="display:flex;gap:12px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:0">
+          <div class="dag-connector-vert fade-in"></div>
+          <div class="fade-in">${dagRawHTML('8 raw messages','Turns 1–4')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:0">
+          <div class="dag-connector-vert fade-in"></div>
+          <div class="fade-in">${dagRawHTML('8 raw messages','Turns 5–8')}</div>
+        </div>
+      </div>`,
+  },
+  // Ch 7: Recall from history
+  {
+    mode:'lcm', label:'Recalling from Compacted History',
+    warning:false,
+    budget:{ pct:22, val:'1,760 / 8,000 (22%)', color:'var(--d-budget)' },
+    messages:
+      sumNode('sum_01','Turns 1–4 ↳ 8 messages compressed','OAuth2 setup: installed client, resolved CORS via redirect URI config, implemented token persistence with localStorage, debugged refresh token flow.',false) +
+      `<div class="ctx-msg"><div class="ctx-msg-avatar avatar-u">U</div><div class="ctx-msg-right"><div class="ctx-msg-meta"><span class="ctx-msg-turn">Turn 12</span><div class="ctx-msg-right-meta"><span class="ctx-fresh-tag">FRESH TAIL</span><span class="ctx-tok">88 tok</span></div></div><div class="ctx-msg-text">What exact redirect URI config did we use to fix the CORS error?</div></div></div>` +
+      `<div class="ctx-tool-block fade-in"><div class="ctx-tool-header">Tool Call — lcm_expand</div><div class="ctx-tool-call"><span class="ctx-tool-fn">lcm_expand</span>(<span class="ctx-tool-key">node_id</span>=<span class="ctx-tool-val">1</span>, <span class="ctx-tool-key">max_tokens</span>=<span class="ctx-tool-val">4000</span>)</div><div class="ctx-tool-result">→ Expanded sum_01 (8 raw messages, Turns 1–4): "That CORS error usually means the redirect URI in your OAuth provider settings doesn't match. Set it to http://localhost:3000/callback exactly." — Turn 2, 510 tok</div></div>` +
+      `<div class="ctx-msg fade-in"><div class="ctx-msg-avatar avatar-a">A</div><div class="ctx-msg-right"><div class="ctx-msg-meta"><span class="ctx-msg-turn">Turn 12</span><div class="ctx-msg-right-meta"><span class="ctx-fresh-tag">FRESH TAIL</span><span class="ctx-tok">195 tok</span></div></div><div class="ctx-msg-text">From Turn 2 (recovered via lcm_expand): set the redirect URI to <strong>http://localhost:3000/callback</strong> exactly — that's what resolved the CORS error in your OAuth provider settings.</div></div></div>`,
+    fresh:true, freshText:'Last 4 messages protected from compaction (fresh tail)',
+    dag:true,
+    dagCount:'2 d0',
+    dagHTML:`
+      <div class="dag-row">
+        ${dagNodeHTML('sum_01','320','Turns 1–4','8 messages','')}
+        ${dagNodeHTML('sum_02','340','Turns 5–8','8 messages','')}
+      </div>
+      <div style="display:flex;gap:12px">
+        <div style="display:flex;flex-direction:column;align-items:flex-start">
+          <div class="dag-connector-vert"></div>
+          ${dagRawHTML('8 raw messages','Turns 1–4')}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start">
+          <div class="dag-connector-vert"></div>
+          ${dagRawHTML('8 raw messages','Turns 5–8')}
+        </div>
+      </div>`,
+  },
+];
+
+const CHAPTER_LABELS = [
+  'Traditional Context Management',
+  'The Threshold',
+  'One Flat Summary',
+  'There\'s a better way.',
+  'Messages Arrive',
+  'Summary Compaction',
+  'The Conversation Keeps Growing',
+  'Recalling from Compacted History',
+];
+
+// DOM refs
+const ctxMessages     = document.getElementById('ctxMessages');
+const ctxModeBadge    = document.getElementById('ctxModeBadge');
+const ctxBudgetVal    = document.getElementById('ctxBudgetVal');
+const ctxBudgetFill   = document.getElementById('ctxBudgetFill');
+const ctxWarning      = document.getElementById('ctxWarning');
+const ctxWarningText  = document.getElementById('ctxWarningText');
+const ctxFreshFooter  = document.getElementById('ctxFreshFooter');
+const ctxFreshText    = document.getElementById('ctxFreshText');
+const dagPanel        = document.getElementById('dagPanel');
+const dagGraph        = document.getElementById('dagGraph');
+const dagCount        = document.getElementById('dagCount');
+const chapterLabel    = document.getElementById('chapterLabel');
+const dots            = document.querySelectorAll('.demo-dot');
+const chapters        = document.querySelectorAll('.demo-chapter');
+
+let currentChapter = -1;
+
+function renderChapter(idx) {
+  if (idx === currentChapter) return;
+  currentChapter = idx;
+
+  const ch = CHAPTERS[idx];
+  if (!ch) return;
+
+  // Dots
+  dots.forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+    d.classList.toggle('trad', i < 3);
+    d.classList.toggle('lcm-dot', i >= 3);
+  });
+
+  // Chapter label in dots bar
+  chapterLabel.textContent = CHAPTER_LABELS[idx] || '';
+  chapterLabel.className = 'demo-chapter-label ' + (idx < 3 ? 'trad-label' : 'lcm-label');
+
+  // Chapter opacity
+  chapters.forEach((c, i) => c.classList.toggle('active', i === idx));
+
+  // Warning banner
+  if (ch.warning) {
+    ctxWarning.classList.add('show');
+    ctxWarningText.textContent = ch.warningText || '';
+  } else {
+    ctxWarning.classList.remove('show');
+  }
+
+  // Mode badge
+  ctxModeBadge.textContent = ch.mode === 'lcm' ? 'LCM' : 'Traditional';
+  ctxModeBadge.className = 'ctx-mode-badge ' + ch.mode;
+
+  // Budget
+  ctxBudgetVal.textContent = ch.budget.val;
+  ctxBudgetVal.style.color = ch.budget.color;
+  ctxBudgetFill.style.width = ch.budget.pct + '%';
+  ctxBudgetFill.style.background = ch.budget.color;
+
+  // Messages
+  ctxMessages.innerHTML = ch.messages;
+
+  // Fresh tail footer
+  if (ch.fresh) {
+    ctxFreshFooter.classList.add('show');
+    ctxFreshText.textContent = ch.freshText || 'Last 4 messages protected from compaction (fresh tail)';
+  } else {
+    ctxFreshFooter.classList.remove('show');
+  }
+
+  // DAG panel
+  if (ch.dag) {
+    dagPanel.classList.add('show');
+    dagCount.textContent = ch.dagCount || '';
+    dagGraph.innerHTML = ch.dagHTML || '';
+  } else {
+    dagPanel.classList.remove('show');
+  }
+}
+
+// Intersection Observer: detect which chapter is in view
+const chObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const idx = parseInt(e.target.dataset.ch);
+      renderChapter(idx);
+    }
+  });
+}, {
+  threshold: 0.4,
+  rootMargin: '-10% 0px -40% 0px'
+});
+
+document.querySelectorAll('.demo-chapter').forEach(ch => chObs.observe(ch));
+
+// Jump to chapter on dot click
+function jumpChapter(idx) {
+  const el = document.getElementById('ch-' + idx);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Initial render
+renderChapter(0);
+</script>
+</body>
+</html>

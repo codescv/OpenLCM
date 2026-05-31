@@ -5,23 +5,25 @@ persistent memory layer for CrewAI agents and crews.
 
 Install: pip install openlcm[crewai]
 
-Usage::
+Already have a CrewAI LLM or LangChain model? Pass it directly::
 
-    from openlcm.core.engine import LCMEngine
-    from openlcm.backends.anthropic import AnthropicBackend
+    from crewai import LLM
     from openlcm.adapters.crewai import LCMStorage
-    from crewai import Crew, Agent, Task
     from crewai.memory import LongTermMemory
 
-    engine = LCMEngine(backend=AnthropicBackend(), db_path="~/.openlcm/crewai.db")
-    engine.bind_session("my-crew")
-
+    llm = LLM(model="gpt-4o-mini")   # your existing CrewAI LLM
     crew = Crew(
-        agents=[...],
-        tasks=[...],
-        memory=True,
-        long_term_memory=LongTermMemory(storage=LCMStorage(engine)),
+        agents=[...], tasks=[...], memory=True,
+        long_term_memory=LongTermMemory(storage=LCMStorage(llm=llm)),
     )
+
+Starting from scratch?::
+
+    from openlcm import LCMEngine
+    from openlcm.adapters.crewai import LCMStorage
+
+    engine = LCMEngine(model="anthropic/claude-haiku-4-5-20251001")
+    crew = Crew(..., long_term_memory=LongTermMemory(storage=LCMStorage(engine)))
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from .base import LCMAdapter
+from .base import LCMAdapter, _resolve_engine
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +50,10 @@ class LCMStorage(LCMAdapter):
     in LCM's compaction and summarization pipeline naturally.
     """
 
-    def __init__(self, engine, session_id: str = "crewai") -> None:
-        super().__init__(engine)
-        if not engine._session_id:
-            engine.bind_session(session_id, platform="crewai")
+    def __init__(self, engine=None, session_id: str = "crewai", *, llm=None, db_path: str = "") -> None:
+        super().__init__(_resolve_engine(engine, llm=llm, db_path=db_path, platform="crewai"))
+        if not self._engine._session_id:
+            self._engine.bind_session(session_id, platform="crewai")
 
     def save(
         self,

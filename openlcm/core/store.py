@@ -378,6 +378,32 @@ class MessageStore:
             deleted = cur.rowcount if cur.rowcount is not None else 0
             return deleted
 
+    def delete_message(self, store_id: int) -> bool:
+        """Delete a single message by store_id. Returns True if deleted."""
+        with self._write_lock:
+            cur = self._conn.execute("DELETE FROM messages WHERE store_id = ?", (store_id,))
+            self._conn.commit()
+            return bool(cur.rowcount)
+
+    def list_sessions(self) -> list:
+        """Return all sessions with message stats, ordered by most recent activity."""
+        rows = self._conn.execute(
+            """
+            SELECT
+                session_id,
+                COUNT(*) AS message_count,
+                COALESCE(SUM(token_estimate), 0) AS total_tokens,
+                MIN(timestamp) AS first_at,
+                MAX(timestamp) AS last_at
+            FROM messages
+            GROUP BY session_id
+            ORDER BY MAX(timestamp) DESC
+            LIMIT 200
+            """
+        ).fetchall()
+        cols = ["session_id", "message_count", "total_tokens", "first_at", "last_at"]
+        return [dict(zip(cols, row)) for row in rows]
+
     def gc_externalized_tool_result(self, store_id: int, placeholder: str) -> bool:
         """Rewrite one unpinned tool-result row to a compact GC placeholder."""
         with self._write_lock:
@@ -541,46 +567,50 @@ class MessageStore:
     def get_session_messages(self, session_id: str,
                              limit: int = 10000) -> List[Dict[str, Any]]:
         """Get all messages for a session, ordered by store_id."""
-        rows = self._conn.execute(
-            f"""SELECT {_MESSAGE_SELECT_COLUMNS} FROM messages
-               WHERE session_id = ?
-               ORDER BY store_id LIMIT ?""",
-            (session_id, limit),
-        ).fetchall()
+        with self._write_lock:
+            rows = self._conn.execute(
+                f"""SELECT {_MESSAGE_SELECT_COLUMNS} FROM messages
+                   WHERE session_id = ?
+                   ORDER BY store_id LIMIT ?""",
+                (session_id, limit),
+            ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     def get_session_tail(self, session_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
         """Get the latest messages for a session, returned in store order."""
         if limit <= 0:
             return []
-        rows = self._conn.execute(
-            f"""SELECT {_MESSAGE_SELECT_COLUMNS}
-               FROM (
-                   SELECT {_MESSAGE_SELECT_COLUMNS}
-                   FROM messages
-                   WHERE session_id = ?
-                   ORDER BY store_id DESC
-                   LIMIT ?
-               )
-               ORDER BY store_id""",
-            (session_id, limit),
-        ).fetchall()
+        with self._write_lock:
+            rows = self._conn.execute(
+                f"""SELECT {_MESSAGE_SELECT_COLUMNS}
+                   FROM (
+                       SELECT {_MESSAGE_SELECT_COLUMNS}
+                       FROM messages
+                       WHERE session_id = ?
+                       ORDER BY store_id DESC
+                       LIMIT ?
+                   )
+                   ORDER BY store_id""",
+                (session_id, limit),
+            ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     def get_session_count(self, session_id: str) -> int:
         """Count messages in a session."""
-        row = self._conn.execute(
-            "SELECT COUNT(*) FROM messages WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
+        with self._write_lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM messages WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
         return row[0] if row else 0
 
     def get_session_token_total(self, session_id: str) -> int:
         """Sum of token estimates for a session."""
-        row = self._conn.execute(
-            "SELECT COALESCE(SUM(token_estimate), 0) FROM messages WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
+        with self._write_lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(token_estimate), 0) FROM messages WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
         return row[0] if row else 0
 
     def get_source_stats(self, session_id: str | None = None) -> Dict[str, int]:

@@ -1,23 +1,11 @@
-"""FastAPI visualization server for OpenLCM.
-
-Serves the live dashboard and streams LCM lifecycle events via SSE.
-
-Start via CLI: openlcm viz
-Or programmatically::
-
-    from openlcm.core.engine import LCMEngine
-    from openlcm.viz.server import create_app, serve
-
-    engine = LCMEngine(backend=...)
-    app = create_app(engine)
-    serve(app, host="127.0.0.1", port=7842)
-"""
+"""FastAPI visualization server for OpenLCM — multi-session dashboard."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -26,15 +14,76 @@ logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).parent / "static"
 
 
-def create_app(engine=None, bus=None):
-    """Create and return the FastAPI application.
+def _node_to_dict(n) -> dict:
+    return {
+        "node_id": n.node_id,
+        "depth": n.depth,
+        "token_count": n.token_count,
+        "source_token_count": n.source_token_count,
+        "source_type": n.source_type,
+        "source_ids": n.source_ids,
+        "created_at": n.created_at,
+        "earliest_at": n.earliest_at,
+        "latest_at": n.latest_at,
+        "expand_hint": n.expand_hint,
+        "summary": n.summary,
+        "summary_preview": n.summary[:200] + "..." if len(n.summary) > 200 else n.summary,
+    }
 
-    Args:
-        engine: LCMEngine instance. If None, the server returns empty/demo data.
-        bus: EventBus instance. Created automatically if not provided.
-    """
+
+def _session_stats(engine, session_id: str) -> dict:
+    """Build a stats dict for any session_id (not just the active one)."""
+    nodes = engine._dag.get_session_nodes(session_id, limit=1000)
+    msg_count = engine._store.get_session_count(session_id)
+    total_tokens = engine._store.get_session_token_total(session_id)
+    tokens_freed = sum(max(0, n.source_token_count - n.token_count) for n in nodes)
+    d0_count = sum(1 for n in nodes if n.depth == 0)
+    last_at: float | None = None
+    first_at: float | None = None
     try:
-        from fastapi import FastAPI, Request
+        sessions = engine._store.list_sessions()
+        for s in sessions:
+            if s["session_id"] == session_id:
+                last_at = s.get("last_at")
+                first_at = s.get("first_at")
+                break
+    except Exception:
+        pass
+
+    is_active = engine._session_id == session_id
+    extra: dict = {}
+    if is_active:
+        extra = {
+            "last_prompt_tokens": engine.last_prompt_tokens,
+            "context_length": engine.context_length,
+            "threshold_tokens": engine.threshold_tokens,
+            "threshold_percent": engine.threshold_percent,
+            "compression_count": engine.compression_count,
+            "last_compression_status": engine._last_compression_status,
+            "summary_model": engine._config.summary_model,
+            "fresh_tail_count": engine._config.fresh_tail_count,
+            "db_path": str(engine._store.db_path),
+            "overflow_recovery_failed": engine._last_overflow_recovery_failed,
+        }
+
+    return {
+        "session_id": session_id,
+        "is_active": is_active,
+        "message_count": msg_count,
+        "total_tokens": total_tokens,
+        "dag_nodes": len(nodes),
+        "dag_d0": d0_count,
+        "tokens_freed": tokens_freed,
+        "first_at": first_at,
+        "last_at": last_at,
+        **extra,
+    }
+
+
+def create_app(engine=None, bus=None):
+    try:
+        from fastapi import FastAPI, Request, HTTPException
+        from fastapi.middleware.cors import CORSMiddleware
         from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
         from fastapi.staticfiles import StaticFiles
     except ImportError:
@@ -47,97 +96,181 @@ def create_app(engine=None, bus=None):
     if engine is not None:
         engine.add_listener(bus.publish)
 
-    app = FastAPI(title="OpenLCM Dashboard", version="0.1.0", docs_url=None, redoc_url=None)
+    app = FastAPI(title="OpenLCM Dashboard", version="0.2.0", docs_url=None, redoc_url=None)
+
+    # Restrict cross-origin requests to same-origin (localhost) only.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:7842", "http://localhost:7842"],
+        allow_methods=["GET", "POST"],  # DELETE is intentionally excluded from CORS
+        allow_headers=["*"],
+    )
+
+    def _require_local(request: Request) -> None:
+        """Reject destructive requests that don't originate from localhost."""
+        host = request.client.host if request.client else ""
+        if host not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(status_code=403, detail="Dashboard write access is restricted to localhost.")
 
     @app.on_event("startup")
     async def _startup():
         bus.set_loop(asyncio.get_running_loop())
         logger.info("OpenLCM Dashboard ready")
 
+    # ── Static pages ────────────────────────────────────────────────────────
+
     @app.get("/", response_class=HTMLResponse)
     async def root():
-        index = _STATIC_DIR / "index.html"
-        return HTMLResponse(content=index.read_text(encoding="utf-8"))
+        return HTMLResponse(content=(_STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+
+    # ── SSE ─────────────────────────────────────────────────────────────────
 
     @app.get("/events")
     async def sse_events(request: Request):
-        """Server-Sent Events stream of LCM lifecycle events."""
-        try:
-            from sse_starlette.sse import EventSourceResponse
-        except ImportError:
-            raise ImportError("pip install sse-starlette")
+        """SSE stream — plain StreamingResponse, no extra dependencies."""
+        from fastapi.responses import StreamingResponse as _SR
 
         async def event_generator():
             q = bus.subscribe()
             try:
                 while True:
-                    if await request.is_disconnected():
-                        break
                     try:
-                        event = await asyncio.wait_for(q.get(), timeout=25.0)
-                        payload = json.dumps({"type": event["type"], "data": event["data"], "ts": event["ts"]}, ensure_ascii=False)
-                        yield {"data": payload}
-                        q.task_done()
+                        event = await asyncio.wait_for(q.get(), timeout=20.0)
+                        if event.get("type") == "ping":
+                            yield ": keepalive\n\n"
+                            continue
+                        payload = json.dumps(
+                            {"type": event["type"], "data": event["data"], "ts": event["ts"]},
+                            ensure_ascii=False,
+                        )
+                        yield f"data: {payload}\n\n"
                     except asyncio.TimeoutError:
-                        yield {"data": json.dumps({"type": "ping", "data": {}, "ts": 0})}
-                    except asyncio.CancelledError:
+                        yield ": keepalive\n\n"
+                    except (asyncio.CancelledError, GeneratorExit):
+                        break
+                    except Exception:
                         break
             finally:
                 bus.unsubscribe(q)
 
-        return EventSourceResponse(event_generator())
+        return _SR(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control":     "no-cache, no-transform",
+                "Connection":        "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @app.get("/api/events/history")
+    async def api_event_history():
+        return JSONResponse({"events": bus.history[-200:]})
+
+    # ── Global overview ──────────────────────────────────────────────────────
+
+    @app.get("/api/overview")
+    async def api_overview():
+        """Global stats across all sessions."""
+        if engine is None:
+            return JSONResponse({"sessions": [], "totals": {}})
+        try:
+            store_sessions = engine._store.list_sessions()
+        except Exception:
+            store_sessions = []
+
+        sessions_out = []
+        global_messages = 0
+        global_tokens_freed = 0
+        global_dag_nodes = 0
+        global_compressions = 0
+
+        for s in store_sessions:
+            sid = s["session_id"]
+            nodes = engine._dag.get_session_nodes(sid, limit=1000)
+            freed = sum(max(0, n.source_token_count - n.token_count) for n in nodes)
+            d0 = sum(1 for n in nodes if n.depth == 0)
+            is_active = engine._session_id == sid
+
+            global_messages += s.get("message_count", 0)
+            global_tokens_freed += freed
+            global_dag_nodes += len(nodes)
+            global_compressions += d0
+
+            sessions_out.append({
+                "session_id": sid,
+                "is_active": is_active,
+                "message_count": s.get("message_count", 0),
+                "total_tokens": s.get("total_tokens", 0),
+                "dag_nodes": len(nodes),
+                "compressions": d0,
+                "tokens_freed": freed,
+                "first_at": s.get("first_at"),
+                "last_at": s.get("last_at"),
+                # Active-session extras
+                **({"last_prompt_tokens": engine.last_prompt_tokens,
+                    "context_length": engine.context_length,
+                    "threshold_tokens": engine.threshold_tokens,
+                    "last_compression_status": engine._last_compression_status,
+                    } if is_active else {}),
+            })
+
+        return JSONResponse({
+            "sessions": sessions_out,
+            "active_session": engine._session_id,
+            "totals": {
+                "sessions": len(sessions_out),
+                "messages": global_messages,
+                "tokens_freed": global_tokens_freed,
+                "dag_nodes": global_dag_nodes,
+                "compressions": global_compressions,
+            },
+        })
+
+    # ── Per-session read endpoints ────────────────────────────────────────────
 
     @app.get("/api/status")
-    async def api_status():
+    async def api_status(session_id: str = ""):
         if engine is None:
             return JSONResponse({"error": "No engine connected"})
-        return JSONResponse(engine.get_status())
+        sid = session_id or engine._session_id
+        if not sid:
+            return JSONResponse(engine.get_status())
+        if sid == engine._session_id:
+            return JSONResponse(engine.get_status())
+        return JSONResponse(_session_stats(engine, sid))
 
     @app.get("/api/dag")
-    async def api_dag():
+    async def api_dag(session_id: str = ""):
         if engine is None:
             return JSONResponse({"nodes": []})
-        session_id = engine._session_id
-        if not session_id:
+        sid = session_id or engine._session_id
+        if not sid:
             return JSONResponse({"nodes": [], "session_id": ""})
-        nodes = engine._dag.get_session_nodes(session_id, limit=500)
+        nodes = engine._dag.get_session_nodes(sid, limit=500)
         return JSONResponse({
-            "session_id": session_id,
-            "nodes": [
-                {
-                    "node_id": n.node_id,
-                    "depth": n.depth,
-                    "token_count": n.token_count,
-                    "source_token_count": n.source_token_count,
-                    "source_type": n.source_type,
-                    "source_ids": n.source_ids,
-                    "created_at": n.created_at,
-                    "earliest_at": n.earliest_at,
-                    "latest_at": n.latest_at,
-                    "expand_hint": n.expand_hint,
-                    "summary_preview": n.summary[:200] + "..." if len(n.summary) > 200 else n.summary,
-                }
-                for n in nodes
-            ],
+            "session_id": sid,
+            "nodes": [_node_to_dict(n) for n in nodes],
         })
 
     @app.get("/api/messages")
-    async def api_messages(limit: int = 50):
+    async def api_messages(limit: int = 200, session_id: str = ""):
         if engine is None:
             return JSONResponse({"messages": []})
-        session_id = engine._session_id
-        if not session_id:
+        sid = session_id or engine._session_id
+        if not sid:
             return JSONResponse({"messages": [], "session_id": ""})
-        rows = engine._store.get_session_tail(session_id, limit=min(limit, 200))
+        rows = engine._store.get_session_tail(sid, limit=min(limit, 500))
         return JSONResponse({
-            "session_id": session_id,
+            "session_id": sid,
             "messages": [
                 {
                     "store_id": r.get("store_id"),
                     "role": r.get("role"),
                     "content_preview": (r.get("content") or "")[:300],
+                    "content_full": r.get("content") or "",
                     "token_estimate": r.get("token_estimate", 0),
-                    "timestamp": r.get("timestamp"),
+                    "created_at": r.get("created_at"),
                 }
                 for r in rows
             ],
@@ -149,7 +282,7 @@ def create_app(engine=None, bus=None):
             return JSONResponse({"results": []})
         query = str(body.get("query", ""))
         limit = int(body.get("limit", 10))
-        session_id = engine._session_id
+        session_id = str(body.get("session_id", "")) or engine._session_id
         if not query or not session_id:
             return JSONResponse({"results": []})
         hits = engine._store.search(query, session_id=session_id, limit=limit)
@@ -160,35 +293,68 @@ def create_app(engine=None, bus=None):
                     "store_id": h.get("store_id"),
                     "role": h.get("role"),
                     "snippet": h.get("snippet", (h.get("content") or "")[:200]),
-                    "timestamp": h.get("timestamp"),
+                    "created_at": h.get("created_at"),
                 }
                 for h in hits
             ],
         })
 
-    @app.get("/api/sessions")
-    async def api_sessions():
+    # ── CRUD: Session-level ───────────────────────────────────────────────────
+
+    @app.delete("/api/sessions/{session_id}")
+    async def delete_session(session_id: str, request: Request):
+        _require_local(request)
         if engine is None:
-            return JSONResponse({"sessions": []})
-        try:
-            rows = engine._store._conn.execute(
-                "SELECT session_id, COUNT(*) as msg_count, MIN(timestamp) as first_at, MAX(timestamp) as last_at "
-                "FROM messages GROUP BY session_id ORDER BY last_at DESC LIMIT 50"
-            ).fetchall()
-            return JSONResponse({
-                "sessions": [
-                    {"session_id": r[0], "message_count": r[1], "first_at": r[2], "last_at": r[3]}
-                    for r in rows
-                ]
-            })
-        except Exception as exc:
-            return JSONResponse({"error": str(exc)})
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        msg_count = engine._store.delete_session_messages(session_id)
+        dag_count = engine._dag.delete_session_nodes(session_id)
+        bus.publish("session_deleted", {"session_id": session_id, "messages": msg_count, "dag_nodes": dag_count})
+        return JSONResponse({"deleted": True, "messages": msg_count, "dag_nodes": dag_count})
 
-    @app.get("/api/events/history")
-    async def api_event_history():
-        return JSONResponse({"events": bus.history[-100:]})
+    @app.delete("/api/sessions/{session_id}/messages")
+    async def clear_session_messages(session_id: str, request: Request):
+        _require_local(request)
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        count = engine._store.delete_session_messages(session_id)
+        bus.publish("messages_cleared", {"session_id": session_id, "count": count})
+        return JSONResponse({"deleted": True, "count": count})
 
-    # Serve static files (dashboard.js, styles.css, etc.)
+    @app.delete("/api/sessions/{session_id}/dag")
+    async def clear_session_dag(session_id: str, request: Request):
+        _require_local(request)
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        count = engine._dag.delete_session_nodes(session_id)
+        bus.publish("dag_cleared", {"session_id": session_id, "count": count})
+        return JSONResponse({"deleted": True, "count": count})
+
+    # ── CRUD: Node-level ──────────────────────────────────────────────────────
+
+    @app.delete("/api/sessions/{session_id}/dag/{node_id}")
+    async def delete_dag_node(session_id: str, node_id: int, request: Request):
+        _require_local(request)
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        ok = engine._dag.delete_node(node_id)
+        if ok:
+            bus.publish("node_deleted", {"session_id": session_id, "node_id": node_id})
+        return JSONResponse({"deleted": ok})
+
+    # ── CRUD: Message-level ───────────────────────────────────────────────────
+
+    @app.delete("/api/sessions/{session_id}/messages/{store_id}")
+    async def delete_message(session_id: str, store_id: int, request: Request):
+        _require_local(request)
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        ok = engine._store.delete_message(store_id)
+        if ok:
+            bus.publish("message_deleted", {"session_id": session_id, "store_id": store_id})
+        return JSONResponse({"deleted": ok})
+
+    # ── Static files ──────────────────────────────────────────────────────────
+
     if _STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
@@ -204,15 +370,6 @@ def serve(
     port: int = 7842,
     open_browser: bool = True,
 ) -> None:
-    """Start the visualization server (blocking).
-
-    Args:
-        app: FastAPI app (created if None).
-        engine: LCMEngine to attach (ignored if app already has one).
-        host: Bind host.
-        port: Bind port.
-        open_browser: Open the dashboard in the default browser.
-    """
     try:
         import uvicorn
     except ImportError:
@@ -222,11 +379,9 @@ def serve(
         app = create_app(engine)
 
     if open_browser:
-        import threading
-        import webbrowser
+        import threading, webbrowser
         def _open():
-            import time
-            time.sleep(1.2)
+            import time as _t; _t.sleep(1.2)
             webbrowser.open(f"http://{host}:{port}")
         threading.Thread(target=_open, daemon=True).start()
 

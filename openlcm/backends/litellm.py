@@ -1,16 +1,21 @@
 """LiteLLM backend for LCM summarization.
 
-Covers 100+ providers: Anthropic, OpenAI, Gemini, Bedrock, Ollama, Groq,
-Together, Mistral, Cohere, Azure, Vertex AI, and more.
+Covers every major provider through a single model-string interface:
 
-Install: pip install openlcm[litellm]
+  Provider          Model string example
+  ──────────────    ────────────────────────────────────────────────────
+  Anthropic         anthropic/claude-haiku-4-5-20251001
+  OpenAI            openai/gpt-4o-mini
+  Azure OpenAI      azure/gpt-4o
+  AWS Bedrock       bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+  Google Gemini     gemini/gemini-2.0-flash
+  Google Vertex AI  vertex_ai/gemini-pro
+  Ollama (local)    ollama/llama3.2
+  WatsonX           watsonx/ibm/granite-13b-chat-v2
+  Groq              groq/llama-3.1-8b-instant
+  Custom endpoint   openai/my-model  + api_base="http://..."
 
-Model string format follows LiteLLM conventions:
-  - "anthropic/claude-haiku-4-5"
-  - "openai/gpt-4o-mini"
-  - "gemini/gemini-1.5-flash"
-  - "ollama/llama3.2"
-  - "bedrock/anthropic.claude-3-haiku"
+Full provider list: https://docs.litellm.ai/docs/providers
 """
 
 from __future__ import annotations
@@ -33,10 +38,16 @@ class LiteLLMBackend(SummaryBackend):
         api_base: Optional base URL override (for custom endpoints / Ollama).
         extra_kwargs: Additional kwargs passed through to litellm.acompletion().
 
-    Example::
+    Most users never need to instantiate this directly — pass a model string
+    to LCMEngine and it creates this backend automatically::
 
-        from openlcm.backends.litellm import LiteLLMBackend
-        backend = LiteLLMBackend(model="anthropic/claude-haiku-4-5-20251001")
+        engine = LCMEngine(model="anthropic/claude-haiku-4-5-20251001")
+        engine = LCMEngine(model="azure/gpt-4o")
+        engine = LCMEngine(model="ollama/llama3.2", api_base="http://localhost:11434")
+
+    Instantiate directly only when you need to share a backend across engines::
+
+        backend = LiteLLMBackend(model="gemini/gemini-2.0-flash")
         engine = LCMEngine(backend=backend)
     """
 
@@ -63,13 +74,7 @@ class LiteLLMBackend(SummaryBackend):
         model: str = "",
         timeout: float | None = None,
     ) -> Optional[str]:
-        try:
-            import litellm
-        except ImportError:
-            raise ImportError(
-                "litellm package is required for LiteLLMBackend. "
-                "Install with: pip install openlcm[litellm]"
-            )
+        import litellm
         effective_model = model or self._model
         kwargs: dict = {
             "model": effective_model,

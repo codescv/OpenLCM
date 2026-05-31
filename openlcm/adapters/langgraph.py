@@ -5,30 +5,34 @@ the persistence and context management layer for any LangGraph graph.
 
 Install: pip install openlcm[langgraph]
 
-Usage::
+If you already have a LangChain LLM defined, pass it directly — no need
+to configure a separate model for LCM::
 
-    from openlcm.core.engine import LCMEngine
-    from openlcm.backends.anthropic import AnthropicBackend
+    from langchain_anthropic import ChatAnthropic
     from openlcm.adapters.langgraph import LCMCheckpointer
-    from langgraph.graph import StateGraph
 
-    engine = LCMEngine(backend=AnthropicBackend())
-    checkpointer = LCMCheckpointer(engine)
+    llm = ChatAnthropic(model="claude-3-haiku-20240307")   # your existing LLM
+    checkpointer = LCMCheckpointer(llm=llm)
 
     graph = StateGraph(MyState).compile(checkpointer=checkpointer)
 
-    # Run with a thread_id — LCM persists and compacts automatically
-    config = {"configurable": {"thread_id": "user-123"}}
-    result = await graph.ainvoke({"messages": [...]}, config=config)
+Starting from scratch (no existing LLM)?::
+
+    from openlcm import LCMEngine
+    from openlcm.adapters.langgraph import LCMCheckpointer
+
+    engine = LCMEngine(model="anthropic/claude-haiku-4-5-20251001")
+    checkpointer = LCMCheckpointer(engine)
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, Iterator, Optional, Sequence, Tuple
 
-from .base import LCMAdapter
+from .base import LCMAdapter, _resolve_engine
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +54,8 @@ class LCMCheckpointer(LCMAdapter):
         - context pressure → compress() on next put()
     """
 
-    def __init__(self, engine) -> None:
-        super().__init__(engine)
+    def __init__(self, engine=None, *, llm=None, db_path: str = "") -> None:
+        super().__init__(_resolve_engine(engine, llm=llm, db_path=db_path, platform="langgraph"))
         self._serde = None  # Use LangGraph's default JSON serde
 
     # ── Required: get_tuple ───────────────────────────────────────────────
@@ -135,6 +139,7 @@ class LCMCheckpointer(LCMAdapter):
         config: Dict[str, Any],
         writes: Sequence[Tuple[str, Any]],
         task_id: str,
+        task_path: tuple = (),
     ) -> None:
         thread_id = self._thread_id(config)
         if not thread_id:
@@ -145,8 +150,8 @@ class LCMCheckpointer(LCMAdapter):
                 msgs = value if isinstance(value, list) else [value]
                 self._engine._ingest_messages(msgs)
 
-    async def aput_writes(self, config, writes, task_id):
-        self.put_writes(config, writes, task_id)
+    async def aput_writes(self, config, writes, task_id, task_path: tuple = ()):
+        self.put_writes(config, writes, task_id, task_path)
 
     # ── Required: list ────────────────────────────────────────────────────
 
@@ -191,26 +196,41 @@ class LCMCheckpointer(LCMAdapter):
 
     @staticmethod
     def _checkpoint_to_messages(checkpoint: Dict[str, Any]) -> list:
-        """Extract messages from a LangGraph checkpoint dict."""
+        """Extract and normalise messages from a LangGraph checkpoint dict.
+
+        Uses LangChainMessages to properly serialize tool_calls / ToolMessage
+        so they survive compression without data loss.
+        """
+        from .langchain import LangChainMessages
+
         channel_values = checkpoint.get("channel_values", {})
-        messages = channel_values.get("messages", [])
-        if isinstance(messages, list):
-            result = []
-            for m in messages:
-                if hasattr(m, "dict"):
-                    d = m.dict()
-                    result.append({
-                        "role": d.get("type", "user"),
-                        "content": d.get("content", ""),
-                    })
-                elif isinstance(m, dict):
-                    result.append(m)
-            return result
-        return []
+        raw = channel_values.get("messages", [])
+        if not isinstance(raw, list):
+            return []
+
+        # Separate LangChain BaseMessage objects from plain dicts
+        lc_objects = [m for m in raw if hasattr(m, "content") and not isinstance(m, dict)]
+        plain_dicts = [m for m in raw if isinstance(m, dict)]
+
+        if lc_objects:
+            # Convert LangChain objects using the proper converter
+            return LangChainMessages.to_lcm(raw)
+
+        # Already plain dicts — normalize role names (LangChain uses "human"/"ai")
+        _role_map = {"human": "user", "ai": "assistant", "chatbot": "assistant"}
+        result = []
+        for m in plain_dicts:
+            role = _role_map.get(str(m.get("role", "user")).lower(), m.get("role", "user"))
+            result.append({**m, "role": role})
+        return result
 
     @staticmethod
     def _rows_to_checkpoint(rows: list, thread_id: str) -> Dict[str, Any]:
-        """Convert stored rows back to a minimal checkpoint dict."""
+        """Convert stored LCM rows back to a minimal LangGraph checkpoint dict.
+
+        Rows are kept as plain dicts in channel_values so LangGraph can store
+        them.  When the graph resumes, _checkpoint_to_messages normalises them.
+        """
         messages = [
             {"role": r.get("role", "user"), "content": r.get("content", "")}
             for r in rows
@@ -218,6 +238,7 @@ class LCMCheckpointer(LCMAdapter):
         return {
             "v": 1,
             "id": thread_id,
+            "ts": datetime.now(timezone.utc).isoformat(),
             "channel_values": {"messages": messages},
             "channel_versions": {},
             "versions_seen": {},
