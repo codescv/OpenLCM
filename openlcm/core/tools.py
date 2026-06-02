@@ -1875,21 +1875,45 @@ def lcm_remember(args: Dict[str, Any], **kwargs) -> str:
     if facts is None:
         return json.dumps({"error": "Fact store not available"})
 
-    fact_id = facts.remember(
+    # Parse optional tags and related_keys — None means "preserve existing on update"
+    raw_tags = args.get("tags")
+    tags: list[str] | None = None
+    if raw_tags is not None:
+        if isinstance(raw_tags, list):
+            tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+        elif isinstance(raw_tags, str) and raw_tags.strip():
+            tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+        else:
+            tags = []
+
+    raw_related = args.get("related_keys")
+    related_keys: list[str] | None = None
+    if raw_related is not None:
+        if isinstance(raw_related, list):
+            related_keys = [str(k).strip() for k in raw_related if str(k).strip()]
+        else:
+            related_keys = []
+
+    result = facts.remember(
         key,
         value,
         scope=scope,
         category=category,
+        tags=tags,
+        related_keys=related_keys,
         source_session_id=engine.current_session_id,
     )
-    return json.dumps({
-        "fact_id": fact_id,
-        "key": key,
-        "value": value,
-        "scope": scope,
-        "category": category,
-        "status": "stored",
-    })
+
+    # Embed the new/updated fact value asynchronously
+    emb = getattr(engine, "_embeddings", None)
+    if emb is not None and emb.enabled and result.get("fact_id"):
+        import asyncio
+        try:
+            asyncio.ensure_future(emb.embed("fact", result["fact_id"], f"{key}: {value}"))
+        except RuntimeError:
+            pass
+
+    return json.dumps(result)
 
 
 def lcm_recall(args: Dict[str, Any], **kwargs) -> str:
@@ -1926,11 +1950,24 @@ def lcm_recall(args: Dict[str, Any], **kwargs) -> str:
             return json.dumps({"key": key, "scope": lookup_scope, "found": False, "facts": []})
         return json.dumps({"key": key, "found": True, "facts": [fact]})
 
-    rows = facts.recall_query(query, scope=scope, category=category, limit=limit)
+    tag = str(args.get("tag") or "").strip() or None
+    related_to = str(args.get("related_to") or "").strip() or None
+
+    if related_to:
+        rows = facts.recall_related(related_to, scope=scope or "global")
+        return json.dumps({
+            "related_to": related_to,
+            "scope": scope or "global",
+            "total": len(rows),
+            "facts": rows,
+        })
+
+    rows = facts.recall_query(query, scope=scope, category=category, tag=tag, limit=limit)
     return json.dumps({
         "query": query or None,
         "scope": scope,
         "category": category,
+        "tag": tag,
         "limit": limit,
         "total": len(rows),
         "facts": rows,
@@ -1958,15 +1995,118 @@ def lcm_forget(args: Dict[str, Any], **kwargs) -> str:
     return json.dumps({"key": key, "scope": scope, "deleted": deleted})
 
 
+def lcm_link(args: Dict[str, Any], **kwargs) -> str:
+    """Bidirectionally link two facts via their related_keys."""
+    engine = _require_engine(kwargs)
+    if engine is None:
+        return json.dumps({"error": "LCM engine not initialized"})
+
+    facts = getattr(engine, "_facts", None)
+    if facts is None:
+        return json.dumps({"error": "Fact store not available"})
+
+    key1 = str(args.get("key1") or "").strip()
+    key2 = str(args.get("key2") or "").strip()
+    if not key1 or not key2:
+        return json.dumps({"error": "key1 and key2 are required"})
+
+    raw_scope = str(args.get("scope") or "global").strip()
+    scope = engine.current_session_id if raw_scope == "current" else (raw_scope or "global")
+
+    updated = facts.link(key1, key2, scope=scope)
+    return json.dumps({"key1": key1, "key2": key2, "scope": scope, "linked": updated})
+
+
+def lcm_semantic_search(args: Dict[str, Any], **kwargs) -> str:
+    """Semantic similarity search across DAG nodes and facts using embeddings.
+
+    Falls back to lcm_grep guidance when embeddings are not configured.
+    """
+    import asyncio
+
+    engine = _require_engine(kwargs)
+    if engine is None:
+        return json.dumps({"error": "LCM engine not initialized"})
+
+    query = str(args.get("query") or "").strip()
+    if not query:
+        return json.dumps({"error": "query is required"})
+
+    limit = _parse_positive_int(args.get("limit", 10), 10)
+    limit = min(limit, 50)
+    content_type = str(args.get("content_type") or "all").strip()
+    if content_type not in ("all", "node", "fact"):
+        content_type = "all"
+
+    emb = getattr(engine, "_embeddings", None)
+    if emb is None or not emb.enabled:
+        return json.dumps({
+            "error": "Semantic search not available",
+            "hint": (
+                "Set LCM_EMBEDDING_MODEL=openai/text-embedding-3-small and "
+                "install sqlite-vec (pip install sqlite-vec) to enable semantic search. "
+                "Use lcm_grep for keyword search in the meantime."
+            ),
+        })
+
+    ct_arg = None if content_type == "all" else content_type
+    try:
+        loop = asyncio.get_event_loop()
+        hits = loop.run_until_complete(emb.search(query, content_type=ct_arg, limit=limit))
+    except RuntimeError:
+        # If there's already a running loop (e.g. inside async framework), use a thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(
+                lambda: asyncio.run(emb.search(query, content_type=ct_arg, limit=limit))
+            )
+            hits = future.result(timeout=10)
+
+    # Enrich hits with content
+    enriched = []
+    for h in hits:
+        item: Dict[str, Any] = dict(h)
+        ct = h.get("content_type", "")
+        cid = h.get("content_id", 0)
+        if ct == "node":
+            node = engine._dag.get_node(cid)
+            if node:
+                item["summary_preview"] = node.summary[:300]
+                item["depth"] = node.depth
+                item["session_id"] = node.session_id
+        elif ct == "fact":
+            fact_row = engine._facts.recall_query(limit=1)  # fallback
+            try:
+                row = engine._facts._conn.execute(
+                    "SELECT key, value, category, scope FROM lcm_facts WHERE fact_id = ?", (cid,)
+                ).fetchone()
+                if row:
+                    item["key"], item["value"], item["category"], item["scope"] = row
+            except Exception:
+                pass
+        enriched.append(item)
+
+    return json.dumps({
+        "query": query,
+        "content_type": content_type,
+        "limit": limit,
+        "total": len(enriched),
+        "results": enriched,
+        "model": emb.embedding_model,
+    })
+
+
 def get_tool_schemas() -> list:
     """Return all LCM tool schemas for registration with agent frameworks."""
     from .schemas import (
         LCM_GREP, LCM_LOAD_SESSION, LCM_DESCRIBE,
         LCM_EXPAND, LCM_EXPAND_QUERY, LCM_STATUS, LCM_DOCTOR,
         LCM_REMEMBER, LCM_RECALL, LCM_FORGET,
+        LCM_LINK, LCM_SEMANTIC_SEARCH,
     )
     return [
         LCM_GREP, LCM_LOAD_SESSION, LCM_DESCRIBE,
         LCM_EXPAND, LCM_EXPAND_QUERY, LCM_STATUS, LCM_DOCTOR,
         LCM_REMEMBER, LCM_RECALL, LCM_FORGET,
+        LCM_LINK, LCM_SEMANTIC_SEARCH,
     ]

@@ -278,13 +278,12 @@ LCM_REMEMBER = {
     "name": "lcm_remember",
     "description": (
         "Store or update a persistent fact, preference, constraint, or decision that should survive "
-        "across sessions. Use this whenever the user states something durable: a preference "
-        "(\"I prefer pytest\"), a project constraint (\"don't push to production without review\"), "
-        "a decision (\"we chose Postgres over MySQL on 2025-04-01\"), or any fact that the agent "
-        "should carry forward into future conversations. "
-        "Facts are keyed by (scope, key) and upserted — calling lcm_remember with an existing key "
-        "updates its value. Default scope is 'global' (shared across all sessions). "
-        "Use scope='current' to store a fact private to the current session."
+        "across sessions. Use this whenever the user states something durable: a preference, "
+        "a constraint ('don't push to production without review'), or a decision with context. "
+        "Facts are keyed by (scope, key) and upserted. When you update an existing key the response "
+        "includes 'previous_value' so you can detect contradictions. "
+        "Tag facts with 'tags' to group related items; link related facts with 'related_keys' to "
+        "form a lightweight knowledge graph queryable via lcm_recall(related_to=key)."
     ),
     "parameters": {
         "type": "object",
@@ -292,7 +291,7 @@ LCM_REMEMBER = {
             "key": {
                 "type": "string",
                 "description": (
-                    "Stable identifier for this fact, using dot-notation for namespacing. "
+                    "Stable identifier using dot-notation. "
                     "Examples: 'user.preferred_test_framework', 'project.deadline', "
                     "'constraint.no_production_pushes', 'decision.database_choice'."
                 ),
@@ -304,9 +303,8 @@ LCM_REMEMBER = {
             "scope": {
                 "type": "string",
                 "description": (
-                    "'global' (default) — visible to all sessions in this database. "
-                    "'current' — private to the current session. "
-                    "Any other string is treated as an explicit session_id scope."
+                    "'global' (default) — visible to all sessions. "
+                    "'current' — private to the current session."
                 ),
                 "default": "global",
             },
@@ -314,13 +312,28 @@ LCM_REMEMBER = {
                 "type": "string",
                 "enum": ["fact", "preference", "constraint", "decision"],
                 "description": (
-                    "Semantic category of the stored item. Helps lcm_recall filter by type. "
-                    "'preference': user style/tooling preferences. "
+                    "'preference': user style/tooling choices. "
                     "'constraint': hard rules the agent must not violate. "
                     "'decision': recorded choices with context. "
-                    "'fact': general knowledge about the project or user."
+                    "'fact': general project or user knowledge (default)."
                 ),
                 "default": "fact",
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Optional list of topic tags for grouping related facts. "
+                    "E.g. ['auth', 'backend']. Use lcm_recall(tag='auth') to retrieve by tag."
+                ),
+            },
+            "related_keys": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Optional list of fact keys that are semantically related to this one. "
+                    "Use lcm_link for bidirectional linking after both facts exist."
+                ),
             },
         },
         "required": ["key", "value"],
@@ -330,39 +343,37 @@ LCM_REMEMBER = {
 LCM_RECALL = {
     "name": "lcm_recall",
     "description": (
-        "Retrieve persistent facts, preferences, constraints, or decisions previously stored with lcm_remember. "
-        "Call this at the start of a new session (or before any consequential action) to load relevant "
-        "durable context that would otherwise be invisible to the model. "
-        "Three modes: (1) exact key lookup via 'key', (2) substring search via 'query', "
-        "(3) no filter — returns all facts. "
-        "Scope defaults to all scopes (global + all sessions); narrow with scope='global' or scope='current'."
+        "Retrieve persistent facts, preferences, constraints, or decisions. "
+        "Modes: (1) exact key lookup via 'key'; (2) substring search via 'query'; "
+        "(3) filter by 'tag' or 'category'; (4) 'related_to' returns facts linked to a given key; "
+        "(5) no filter — returns all facts ordered by most recently updated. "
+        "Call at session start to load all durable context before the agent begins working."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "key": {
                 "type": "string",
-                "description": (
-                    "Exact key to look up (e.g. 'user.preferred_test_framework'). "
-                    "When provided, returns a single fact or found=false. "
-                    "Mutually exclusive with query."
-                ),
+                "description": "Exact key lookup. Returns single fact or found=false.",
             },
             "query": {
                 "type": "string",
+                "description": "Substring search across keys and values.",
+            },
+            "related_to": {
+                "type": "string",
                 "description": (
-                    "Substring to search across all fact keys and values. "
-                    "Returns all matching facts ordered by most recently updated."
+                    "Return all facts linked to this key via shared tags or related_keys. "
+                    "Use to explore the knowledge graph around a topic."
                 ),
+            },
+            "tag": {
+                "type": "string",
+                "description": "Filter by a specific tag (e.g. 'auth', 'backend').",
             },
             "scope": {
                 "type": "string",
-                "description": (
-                    "Limit results to a specific scope. "
-                    "'global' returns only global facts. "
-                    "'current' returns facts for the current session. "
-                    "Omit to search across all scopes (recommended at session start)."
-                ),
+                "description": "'global', 'current', or omit to search all scopes.",
             },
             "category": {
                 "type": "string",
@@ -382,16 +393,13 @@ LCM_RECALL = {
 LCM_FORGET = {
     "name": "lcm_forget",
     "description": (
-        "Delete a stored fact by key and scope. Use when a fact is no longer true or relevant — "
-        "for example, if a deadline was cancelled, a preference changed, or a constraint was lifted."
+        "Delete a stored fact by key and scope. Use when a fact is no longer true — "
+        "deadline cancelled, preference changed, constraint lifted."
     ),
     "parameters": {
         "type": "object",
         "properties": {
-            "key": {
-                "type": "string",
-                "description": "Exact key of the fact to delete.",
-            },
+            "key": {"type": "string", "description": "Exact key of the fact to delete."},
             "scope": {
                 "type": "string",
                 "description": "'global' (default) or 'current' for the current session.",
@@ -399,6 +407,61 @@ LCM_FORGET = {
             },
         },
         "required": ["key"],
+    },
+}
+
+LCM_LINK = {
+    "name": "lcm_link",
+    "description": (
+        "Bidirectionally link two facts via their related_keys. "
+        "After linking, lcm_recall(related_to='key1') will return key2 and vice versa. "
+        "Use to build explicit causal/dependency connections between facts — e.g. link "
+        "'decision.database' to 'constraint.legal_data_residency' to record why that decision was made."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "key1": {"type": "string", "description": "First fact key."},
+            "key2": {"type": "string", "description": "Second fact key to link to key1."},
+            "scope": {
+                "type": "string",
+                "description": "Scope of both facts. Default 'global'.",
+                "default": "global",
+            },
+        },
+        "required": ["key1", "key2"],
+    },
+}
+
+LCM_SEMANTIC_SEARCH = {
+    "name": "lcm_semantic_search",
+    "description": (
+        "Search DAG summary nodes and facts by semantic similarity using vector embeddings. "
+        "Unlike lcm_grep (keyword matching), this finds conceptually related content even when "
+        "exact keywords differ — e.g. 'authentication system' finds 'JWT with 24h expiry'. "
+        "Requires LCM_EMBEDDING_MODEL to be set (e.g. openai/text-embedding-3-small). "
+        "Falls back gracefully with instructions when not configured."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Natural language query to find semantically similar content.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum results (default 10, max 50).",
+                "default": 10,
+            },
+            "content_type": {
+                "type": "string",
+                "enum": ["all", "node", "fact"],
+                "description": "'all' searches both DAG nodes and facts; 'node' or 'fact' to restrict.",
+                "default": "all",
+            },
+        },
+        "required": ["query"],
     },
 }
 

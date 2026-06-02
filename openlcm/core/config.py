@@ -237,6 +237,29 @@ class LCMConfig:
     # Safety gate: destructive `/lcm doctor clean apply` workflow is disabled by default.
     doctor_clean_apply_enabled: bool = False
 
+    # -- Auto memory injection ---
+    # When enabled, relevant facts and history are automatically injected into the
+    # system message before each compaction — no manual lcm_recall needed.
+    auto_inject_memory: bool = False
+    # Number of top fact/history hits to inject.
+    auto_inject_top_k: int = 5
+
+    # -- Auto-extraction to facts ---
+    # When enabled, each new D0 summary node is passed to a background LLM call
+    # that extracts decisions/preferences/constraints into the fact store.
+    extraction_to_facts_enabled: bool = False
+
+    # -- Salience auto-pinning ---
+    # Named groups or raw regex patterns. Matching messages are auto-pinned
+    # (protected from early compression). Named groups: "constraint", "error", "correction".
+    auto_pin_patterns: list[str] = field(default_factory=list)
+
+    # -- Semantic embedding model ---
+    # When set, DAG summary nodes and facts are embedded and stored via sqlite-vec
+    # for semantic (cosine similarity) search. Empty = disabled, falls back to FTS5.
+    # Example: "openai/text-embedding-3-small"
+    embedding_model: str = ""
+
     @classmethod
     def from_env(cls) -> "LCMConfig":
         """Build config from environment variables (LCM_ prefix)."""
@@ -331,6 +354,15 @@ class LCMConfig:
             "LCM_DOCTOR_CLEAN_APPLY_ENABLED",
             c.doctor_clean_apply_enabled,
         )
+        c.auto_inject_memory = _parse_bool_env("LCM_AUTO_INJECT_MEMORY", c.auto_inject_memory)
+        c.auto_inject_top_k = _int("LCM_AUTO_INJECT_TOP_K", c.auto_inject_top_k)
+        c.extraction_to_facts_enabled = _parse_bool_env(
+            "LCM_EXTRACTION_TO_FACTS_ENABLED", c.extraction_to_facts_enabled
+        )
+        raw_auto_pin = os.environ.get("LCM_AUTO_PIN_PATTERNS")
+        if raw_auto_pin is not None:
+            c.auto_pin_patterns = _parse_pattern_list(raw_auto_pin)
+        c.embedding_model = _str("LCM_EMBEDDING_MODEL", c.embedding_model)
 
         raw_ignore = os.environ.get("LCM_IGNORE_SESSION_PATTERNS")
         if raw_ignore is not None:

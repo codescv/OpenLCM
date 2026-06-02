@@ -57,6 +57,9 @@ from .ingest_protection import (
     restore_ingest_payload_placeholders,
     sensitive_pattern_status,
 )
+from collections import Counter
+
+from .embeddings import EmbeddingStore
 from .facts import FactStore
 from .lifecycle_state import LifecycleStateStore
 from .message_content import normalize_content_value, text_content_for_pattern_matching
@@ -75,6 +78,59 @@ _INTERNAL_ASSISTANT_PART_TYPES = {
     "analysis", "chain_of_thought", "internal", "reasoning",
     "redacted_thinking", "scratchpad", "thought", "thinking",
 }
+
+# ── Auto-pin salience patterns ─────────────────────────────────────────────────
+
+_AUTO_PIN_NAMED_PATTERNS: dict[str, list[str]] = {
+    "constraint": [
+        r"(?i)\b(never|always|do\s+not|must\s+not|must)\b",
+        r"(?:IMPORTANT|WARNING|CRITICAL|NOTE)\s*:",
+    ],
+    "error": [
+        r"Traceback \(most recent call last\)",
+        r"(?:Error|Exception|AssertionError|TypeError|ValueError|KeyError|AttributeError|RuntimeError)\s*:",
+    ],
+    "correction": [
+        r"^(?:No[,. ]|Wait[,. ]|Actually[,. ]|Stop[,. ]|Wrong[,. ])",
+    ],
+}
+
+_INJECT_STOP_WORDS = frozenset({
+    "i", "me", "my", "you", "your", "we", "the", "a", "an", "is", "are", "was",
+    "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
+    "can", "could", "should", "may", "might", "this", "that", "these", "those",
+    "it", "its", "in", "on", "at", "to", "for", "of", "and", "or", "but", "not",
+    "so", "if", "then", "than", "as", "with", "by", "from", "up", "about", "into",
+    "what", "how", "when", "where", "who", "which", "all", "any", "just", "also",
+    "no", "yes", "ok", "okay", "hi", "hello", "please", "thanks", "thank", "get",
+    "use", "make", "see", "let", "need", "want", "know", "think", "here", "there",
+    "like", "look", "work", "way", "new", "one", "two", "three", "four", "five",
+})
+
+
+def _compile_auto_pin_patterns(patterns: list[str]) -> list[re.Pattern]:
+    compiled: list[re.Pattern] = []
+    for p in patterns:
+        for raw in _AUTO_PIN_NAMED_PATTERNS.get(p, [p]):
+            try:
+                compiled.append(re.compile(raw, re.MULTILINE))
+            except re.error:
+                pass
+    return compiled
+
+
+def _extract_injection_keywords(messages: list[Dict[str, Any]], max_k: int = 6) -> str:
+    words: list[str] = []
+    for msg in messages:
+        if msg.get("role") != "user":
+            continue
+        content = normalize_content_value(msg.get("content")) or ""
+        tokens = re.findall(r"\b[a-z][a-z0-9_]{2,}\b", content.lower())
+        words.extend(w for w in tokens if w not in _INJECT_STOP_WORDS)
+    if not words:
+        return ""
+    counter = Counter(words)
+    return " ".join(w for w, _ in counter.most_common(max_k))
 
 
 def _tool_call_id(tool_call: Any) -> str:
@@ -177,6 +233,7 @@ class LCMEngine:
         self._dag = SummaryDAG(resolved_db)
         self._lifecycle = LifecycleStateStore(resolved_db)
         self._facts = FactStore(resolved_db)
+        self._embeddings = EmbeddingStore(resolved_db, embedding_model=self._config.embedding_model)
 
         # Session state
         self._session_id: str = ""
@@ -190,6 +247,7 @@ class LCMEngine:
         self._compiled_ignore_session_patterns = compile_session_patterns(self._config.ignore_session_patterns)
         self._compiled_stateless_session_patterns = compile_session_patterns(self._config.stateless_session_patterns)
         self._compiled_ignore_message_patterns = compile_message_patterns(self._config.ignore_message_patterns)
+        self._compiled_auto_pin_patterns = _compile_auto_pin_patterns(self._config.auto_pin_patterns)
         self._ignored_message_count: int = 0
 
         # Compaction state
@@ -536,14 +594,20 @@ class LCMEngine:
         })
         self._last_compression_status = "running"
 
+        # Compute memory injection once from original messages (before any compression)
+        _memory_injection: str | None = (
+            self._build_memory_injection(messages) if self._config.auto_inject_memory else None
+        )
+
         # Step 1: Ingest new messages
         working_messages = self._ingest_messages(messages)
 
         # Overflow recovery: forced convergence when context already exceeds cap
         if force_overflow:
             leading_anchor_count = self._leading_anchor_count(working_messages)
+            base_sys = working_messages[0] if leading_anchor_count else None
             compressed = self._assemble_overflow_recovery_context(
-                working_messages[0] if leading_anchor_count else None,
+                self._apply_memory_injection(base_sys, _memory_injection),
                 working_messages[leading_anchor_count:],
                 assembly_cap_override=recovery_assembly_cap,
             )
@@ -642,6 +706,20 @@ class LCMEngine:
                 "source_ids_count": len(source_store_ids),
             })
 
+            # Auto-extraction: populate fact store from summary (fire-and-forget)
+            if self._config.extraction_to_facts_enabled:
+                try:
+                    asyncio.ensure_future(self._extract_facts_from_summary(summary_text))
+                except RuntimeError:
+                    pass
+
+            # Semantic embedding of new node (fire-and-forget)
+            if self._embeddings.enabled and node.node_id:
+                try:
+                    asyncio.ensure_future(self._embeddings.embed("node", node.node_id, summary_text))
+                except RuntimeError:
+                    pass
+
             # Trim compacted messages from working set
             remaining = working_messages[leading_anchor_count + len(compacted_chunk):]
             working_messages = working_messages[:leading_anchor_count] + remaining
@@ -673,8 +751,9 @@ class LCMEngine:
 
         # Step 7: Assemble new active context
         leading_anchor_count = self._leading_anchor_count(working_messages)
+        base_sys = working_messages[0] if leading_anchor_count else None
         compressed = self._assemble_context(
-            working_messages[0] if leading_anchor_count else None,
+            self._apply_memory_injection(base_sys, _memory_injection),
             working_messages[leading_anchor_count:],
             assembly_cap_override=recovery_assembly_cap,
         )
@@ -1563,6 +1642,14 @@ class LCMEngine:
                     "role": msg.get("role", "unknown"),
                     "token_estimate": count_message_tokens(msg),
                 })
+                # Salience auto-pinning: protect high-value messages from early compression
+                if self._compiled_auto_pin_patterns and store_id:
+                    pin_text = text_content_for_pattern_matching(msg.get("content")) or ""
+                    if pin_text and any(p.search(pin_text) for p in self._compiled_auto_pin_patterns):
+                        try:
+                            self._store.pin(store_id)
+                        except Exception:
+                            pass
             except Exception as exc:
                 logger.warning("LCM message ingest failed: %s", exc)
 
@@ -1650,6 +1737,120 @@ class LCMEngine:
                 self._compiled_stateless_session_patterns,
             )
         )
+
+    # ── Auto memory injection ──────────────────────────────────────────────
+
+    def _build_memory_injection(self, messages: List[Dict[str, Any]]) -> str | None:
+        """Search facts + history for content relevant to recent user messages.
+
+        Returns a compact injection block or None. Called once per compress()
+        to augment the system message — the result is NOT stored in SQLite.
+        """
+        recent_user = [m for m in messages[-10:] if m.get("role") == "user"][-3:]
+        if not recent_user:
+            return None
+        keywords = _extract_injection_keywords(recent_user, max_k=6)
+        if not keywords:
+            return None
+
+        top_k = max(1, self._config.auto_inject_top_k)
+        parts: list[str] = []
+        seen_keys: set[str] = set()
+
+        # Search each keyword separately — LIKE needs single terms, not joined strings
+        keyword_list = keywords.split()[:5]
+        try:
+            for kw in keyword_list:
+                for f in self._facts.recall_query(kw, limit=3):
+                    fk = f["key"]
+                    if fk not in seen_keys:
+                        parts.append(f"[{f['category']}] {fk}: {f['value']}")
+                        seen_keys.add(fk)
+                if len(parts) >= top_k:
+                    break
+        except Exception:
+            pass
+
+        remaining = max(0, top_k - len(parts))
+        if remaining > 0:
+            try:
+                hits = self._store.search(keywords, session_id=None, limit=remaining, sort="hybrid")
+                for h in hits:
+                    snippet = (h.get("snippet") or h.get("content") or "")[:180].strip()
+                    if snippet:
+                        parts.append(f"[{h['role']}] {snippet}")
+            except Exception:
+                pass
+
+        if not parts:
+            return None
+
+        lines = "\n".join(f"  • {p}" for p in parts[:top_k])
+        return f"[Recalled Memory — relevant facts and history]\n{lines}\n[/Recalled Memory]"
+
+    def _apply_memory_injection(
+        self,
+        system_msg: Optional[Dict[str, Any]],
+        injection: str | None,
+    ) -> Optional[Dict[str, Any]]:
+        """Append injection text to system message content (returns new dict, not mutated)."""
+        if not injection or system_msg is None:
+            return system_msg
+        sys_content = normalize_content_value(system_msg.get("content")) or ""
+        return {**system_msg, "content": sys_content + "\n\n" + injection}
+
+    # ── Auto-extraction to facts ───────────────────────────────────────────
+
+    async def _extract_facts_from_summary(self, summary_text: str) -> None:
+        """Parse a DAG summary and auto-populate the fact store (non-blocking)."""
+        prompt = (
+            "From the conversation summary below, extract a JSON array of durable facts, "
+            "decisions, preferences, and constraints worth remembering in future sessions.\n"
+            "Format: [{\"key\": \"dot.notation.key\", \"value\": \"concise value\", "
+            "\"category\": \"fact|preference|constraint|decision\"}]\n"
+            "Rules: only include genuinely durable facts (not transient state). "
+            "Use dot-notation keys like 'project.database' or 'user.preferred_language'. "
+            "Return [] if nothing notable. Output ONLY the JSON array, nothing else.\n\n"
+            f"SUMMARY:\n{summary_text[:3000]}"
+        )
+        try:
+            result = await asyncio.wait_for(
+                self._backend.summarize(
+                    prompt,
+                    max_tokens=600,
+                    model=self._config.extraction_model or self._config.summary_model,
+                    timeout=20.0,
+                ),
+                timeout=25.0,
+            )
+            clean = _strip_reasoning_blocks(result or "").strip()
+            start = clean.find("[")
+            end = clean.rfind("]") + 1
+            if start < 0 or end <= 0:
+                return
+            items = json.loads(clean[start:end])
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                key = str(item.get("key") or "").strip()
+                value = str(item.get("value") or "").strip()
+                category = str(item.get("category") or "fact").strip()
+                if not key or not value or len(key) > 120:
+                    continue
+                if category not in ("fact", "preference", "constraint", "decision"):
+                    category = "fact"
+                self._facts.remember(
+                    key, value,
+                    scope="global",
+                    category=category,
+                    source_session_id=self._session_id,
+                )
+                self._emit("fact_stored", {
+                    "key": key, "scope": "global",
+                    "category": category, "source": "auto_extraction",
+                })
+        except Exception as exc:
+            logger.debug("LCM auto-extraction failed (non-blocking): %s", exc)
 
     # ── Status & tools ─────────────────────────────────────────────────────
 
@@ -1748,6 +1949,8 @@ class LCMEngine:
             "lcm_remember": lcm_tools.lcm_remember,
             "lcm_recall": lcm_tools.lcm_recall,
             "lcm_forget": lcm_tools.lcm_forget,
+            "lcm_link": lcm_tools.lcm_link,
+            "lcm_semantic_search": lcm_tools.lcm_semantic_search,
         }
         handler = handlers.get(name)
         if handler:

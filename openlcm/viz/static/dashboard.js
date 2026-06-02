@@ -1022,6 +1022,10 @@ function renderFacts() {
     const safeKey    = esc(f.key || '');
     const safeVal    = esc((f.value || '').slice(0, 180));
     const updated    = f.updated_at ? timeAgo(f.updated_at) : '';
+    const tags       = Array.isArray(f.tags) ? f.tags : [];
+    const related    = Array.isArray(f.related_keys) ? f.related_keys : [];
+    const tagChips   = tags.map(t => `<span class="fact-tag-chip">${esc(t)}</span>`).join('');
+    const relHint    = related.length ? `<span class="fact-rel-hint" title="${esc(related.join(', '))}">⟳ ${related.length} link${related.length > 1 ? 's' : ''}</span>` : '';
     return `<div class="fact-row" title="${safeKey}">
       <div class="fact-header">
         <span class="fact-key">${safeKey}</span>
@@ -1032,7 +1036,8 @@ function renderFacts() {
         <button class="fact-del-btn" onclick="deleteFact('${safeScope}','${safeKey.replace(/'/g, "\\'")}')" title="Delete fact">✕</button>
       </div>
       <div class="fact-value">${safeVal}${(f.value || '').length > 180 ? '…' : ''}</div>
-      ${updated ? `<div style="font-size:9px;color:var(--text-dim);margin-top:3px">${esc(updated)}</div>` : ''}
+      ${(tagChips || relHint) ? `<div class="fact-meta-row">${tagChips}${relHint}</div>` : ''}
+      ${updated ? `<div style="font-size:9px;color:var(--text-dim);margin-top:2px">${esc(updated)}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -1044,6 +1049,7 @@ function showAddFactModal() {
   const valEl = $('af-value'); if (valEl) valEl.value = '';
   const catEl = $('af-category'); if (catEl) catEl.value = 'fact';
   const scopeEl = $('af-scope'); if (scopeEl) scopeEl.value = 'global';
+  const tagsEl = $('af-tags'); if (tagsEl) tagsEl.value = '';
   overlay.style.display = 'flex';
   setTimeout(() => { if (keyEl) keyEl.focus(); }, 50);
 }
@@ -1059,6 +1065,8 @@ async function submitAddFact() {
   const value    = (($('af-value') || {}).value || '').trim();
   const category = ($('af-category') || {}).value || 'fact';
   const scope    = ($('af-scope') || {}).value || 'global';
+  const rawTags  = (($('af-tags') || {}).value || '').trim();
+  const tags     = rawTags ? rawTags.split(',').map(t => t.trim()).filter(Boolean) : [];
 
   if (!key || !value) { toast('error', 'Key and value are required'); return; }
 
@@ -1066,8 +1074,11 @@ async function submitAddFact() {
     ? (S.sessionId || 'global')
     : scope;
 
+  const body = { key, value, category, scope: resolvedScope };
+  if (tags.length) body.tags = tags;
+
   try {
-    const r = await apiFetch('POST /api/facts', { key, value, category, scope: resolvedScope });
+    const r = await apiFetch('POST /api/facts', body);
     if (r && r.fact_id) {
       toast('success', `Stored: ${key}`);
       closeAddFactModal();

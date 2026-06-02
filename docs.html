@@ -205,11 +205,14 @@
     <hr class="toc-hr" />
     <div class="sb-group">
       <span class="sb-group-label">reference</span>
-      <a href="#converters" class="sb-link"><div class="sb-dot"></div>message converters</a>
-      <a href="#memory"     class="sb-link"><div class="sb-dot"></div>persistent memory</a>
-      <a href="#viz"        class="sb-link"><div class="sb-dot"></div>dashboard</a>
-      <a href="#cli"        class="sb-link"><div class="sb-dot"></div>CLI reference</a>
-      <a href="#api"        class="sb-link"><div class="sb-dot"></div>API reference</a>
+      <a href="#converters"  class="sb-link"><div class="sb-dot"></div>message converters</a>
+      <a href="#memory"      class="sb-link"><div class="sb-dot"></div>persistent memory</a>
+      <a href="#fact-graph"  class="sb-link"><div class="sb-dot"></div>fact graph</a>
+      <a href="#auto-memory" class="sb-link"><div class="sb-dot"></div>auto memory</a>
+      <a href="#semantic"    class="sb-link"><div class="sb-dot"></div>semantic search</a>
+      <a href="#viz"         class="sb-link"><div class="sb-dot"></div>dashboard</a>
+      <a href="#cli"         class="sb-link"><div class="sb-dot"></div>CLI reference</a>
+      <a href="#api"         class="sb-link"><div class="sb-dot"></div>API reference</a>
     </div>
   </aside>
 
@@ -326,6 +329,11 @@ engine = <span class="cls">LCMEngine</span>(model=<span class="str">"..."</span>
           <tr><td>LCM_LEAF_CHUNK_TOKENS</td><td>int</td><td>20000</td><td>Tokens per D0 leaf summary chunk</td></tr>
           <tr><td>LCM_CONDENSATION_FANIN</td><td>int</td><td>4</td><td>D0 nodes required before D1 arc is created</td></tr>
           <tr><td>LCM_DB_PATH</td><td>str</td><td>~/.openlcm/lcm.db</td><td>SQLite database path</td></tr>
+          <tr><td>LCM_AUTO_INJECT_MEMORY</td><td>bool</td><td>false</td><td>Auto-inject relevant facts &amp; history into context before each compression (no LLM call — keyword-based)</td></tr>
+          <tr><td>LCM_AUTO_INJECT_TOP_K</td><td>int</td><td>5</td><td>Max facts injected per compression call when auto-inject is enabled</td></tr>
+          <tr><td>LCM_EXTRACTION_TO_FACTS_ENABLED</td><td>bool</td><td>false</td><td>Auto-extract decisions/constraints/preferences from each new D0 summary into the fact store</td></tr>
+          <tr><td>LCM_AUTO_PIN_PATTERNS</td><td>str</td><td>""</td><td>Comma-separated groups to auto-pin: <code>constraint</code>, <code>error</code>, <code>correction</code></td></tr>
+          <tr><td>LCM_EMBEDDING_MODEL</td><td>str</td><td>""</td><td>LiteLLM model for embeddings (e.g. <code>openai/text-embedding-3-small</code>). Enables <code>lcm_semantic_search</code>.</td></tr>
         </tbody>
       </table>
     </section>
@@ -970,14 +978,16 @@ lcm_msgs  = converter.to_lcm(messages)</div>
       <p>The DAG compresses and retrieves <em>conversation history</em>. But some things aren't history — they're standing truths: "the user prefers pytest", "don't push to production without a review", "we chose Postgres on 2025-04-01". These facts should be present at the start of every new session, not buried under 40 turns of old conversation.</p>
       <p>The fact store is a separate key-value layer in the same SQLite database, queryable independently of the message store or DAG.</p>
 
-      <h3 class="sub-title">The three tools</h3>
+      <h3 class="sub-title">Agent tools</h3>
       <div class="table-wrap">
-        <table class="ref-table">
+        <table class="param-table">
           <thead><tr><th>Tool</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>lcm_remember(key, value)</code></td><td>Store or update a fact. Upserts on <code>(scope, key)</code>.</td></tr>
-            <tr><td><code>lcm_recall()</code></td><td>Retrieve facts — by exact key, substring query, or list all.</td></tr>
+            <tr><td><code>lcm_remember(key, value, …)</code></td><td>Store or update a fact. Supports <code>tags</code>, <code>related_keys</code>, <code>category</code>, <code>scope</code>. Upserts on <code>(scope, key)</code>. Returns <code>previous_value</code> if the fact changed.</td></tr>
+            <tr><td><code>lcm_recall(…)</code></td><td>Retrieve facts — filter by <code>key</code>, <code>query</code>, <code>category</code>, <code>tag</code>, or <code>related_to</code>. No args returns all.</td></tr>
             <tr><td><code>lcm_forget(key)</code></td><td>Delete a fact when it's no longer true.</td></tr>
+            <tr><td><code>lcm_link(key1, key2)</code></td><td>Bidirectionally link two facts. Each fact's <code>related_keys</code> list is updated. Use to capture causal chains.</td></tr>
+            <tr><td><code>lcm_semantic_search(query)</code></td><td>Cosine-similarity search over DAG nodes and facts. Requires <code>LCM_EMBEDDING_MODEL</code>. Falls back gracefully with a hint to use <code>lcm_grep</code>.</td></tr>
           </tbody>
         </table>
       </div>
@@ -989,22 +999,27 @@ lcm_msgs  = converter.to_lcm(messages)</div>
 lcm_remember(
     key=<span class="str">"user.preferred_test_framework"</span>,
     value=<span class="str">"pytest"</span>,
-    category=<span class="str">"preference"</span>
+    category=<span class="str">"preference"</span>,
+    tags=[<span class="str">"tooling"</span>, <span class="str">"testing"</span>],
 )
 
-<span class="cmt"># Record a project constraint</span>
+<span class="cmt"># Record a project constraint with tags</span>
 lcm_remember(
     key=<span class="str">"constraint.no_production_push"</span>,
     value=<span class="str">"Never push to production without a peer review. Agreed 2025-06-01."</span>,
-    category=<span class="str">"constraint"</span>
+    category=<span class="str">"constraint"</span>,
+    tags=[<span class="str">"deployment"</span>, <span class="str">"safety"</span>],
 )
 
-<span class="cmt"># Record a decision with context</span>
+<span class="cmt"># Record a decision — if key exists, response includes previous_value</span>
 lcm_remember(
     key=<span class="str">"decision.database"</span>,
     value=<span class="str">"Chose Postgres over MySQL — better JSON support needed for events table."</span>,
-    category=<span class="str">"decision"</span>
-)</div>
+    category=<span class="str">"decision"</span>,
+    tags=[<span class="str">"backend"</span>, <span class="str">"infra"</span>],
+)
+<span class="cmt"># → { "status": "stored", "key": "decision.database", ... }</span>
+<span class="cmt"># → If value changed: also includes "updated": true, "previous_value": "..."</span></div>
       </div>
 
       <h3 class="sub-title">Recalling facts</h3>
@@ -1020,7 +1035,13 @@ lcm_recall(category=<span class="str">"constraint"</span>)
 lcm_recall(key=<span class="str">"user.preferred_test_framework"</span>)
 
 <span class="cmt"># Search by keyword</span>
-lcm_recall(query=<span class="str">"database"</span>)</div>
+lcm_recall(query=<span class="str">"database"</span>)
+
+<span class="cmt"># Filter by tag (v0.1.2+) — returns all facts with this tag</span>
+lcm_recall(tag=<span class="str">"deployment"</span>)
+
+<span class="cmt"># Traverse fact graph — returns facts linked to key via related_keys or shared tags</span>
+lcm_recall(related_to=<span class="str">"decision.database"</span>)</div>
       </div>
 
       <h3 class="sub-title">Scope</h3>
@@ -1087,6 +1108,187 @@ modifies state.</div>
       </div>
     </section>
 
+    <!-- ══════════════ FACT GRAPH ══════════════ -->
+    <section class="doc-section" id="fact-graph">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Fact Graph</h2>
+      <p class="sec-lead">Facts can carry <strong>tags</strong> and bidirectional <strong>related_keys</strong> links, forming a lightweight knowledge graph directly in SQLite — no extra infrastructure.</p>
+
+      <h3 class="sub-title" style="margin-top:0">Tags</h3>
+      <p>Any fact can be tagged with a list of strings. Tags survive updates — calling <code>lcm_remember</code> without a <code>tags</code> argument preserves existing tags.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">tagging and filtering</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Store with tags</span>
+lcm_remember(key=<span class="str">"service.auth"</span>, value=<span class="str">"JWT, 24h expiry, RS256"</span>, tags=[<span class="str">"auth"</span>, <span class="str">"backend"</span>])
+lcm_remember(key=<span class="str">"service.session"</span>, value=<span class="str">"Redis-backed, 15min TTL"</span>, tags=[<span class="str">"auth"</span>, <span class="str">"backend"</span>])
+
+<span class="cmt"># Retrieve all auth-tagged facts</span>
+lcm_recall(tag=<span class="str">"auth"</span>)
+<span class="cmt"># → both service.auth and service.session returned</span>
+
+<span class="cmt"># Update value — tags preserved automatically when not provided</span>
+lcm_remember(key=<span class="str">"service.auth"</span>, value=<span class="str">"JWT, 48h expiry, RS256"</span>)
+<span class="cmt"># → tags still ["auth", "backend"] — not cleared</span></div>
+      </div>
+
+      <h3 class="sub-title">Linking facts</h3>
+      <p><code>lcm_link</code> creates a bidirectional <code>related_keys</code> connection between two facts. <code>lcm_recall(related_to=key)</code> traverses both explicit links and shared tags.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">lcm_link — bidirectional edge</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Create a causal link</span>
+lcm_link(key1=<span class="str">"decision.database"</span>, key2=<span class="str">"constraint.no_external_db"</span>)
+<span class="cmt"># → decision.database.related_keys now includes "constraint.no_external_db"</span>
+<span class="cmt"># → constraint.no_external_db.related_keys now includes "decision.database"</span>
+
+<span class="cmt"># Traverse: returns all facts reachable via links or shared tags</span>
+lcm_recall(related_to=<span class="str">"decision.database"</span>)
+<span class="cmt"># → constraint.no_external_db, plus any other fact sharing a tag with decision.database</span></div>
+      </div>
+
+      <h3 class="sub-title">Contradiction detection</h3>
+      <p>When a fact is updated with a substantially different value, the response includes the old value so the agent can surface the conflict.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">contradiction surface</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># First write</span>
+lcm_remember(key=<span class="str">"decision.database"</span>, value=<span class="str">"Postgres"</span>)
+
+<span class="cmt"># Later: someone wants to switch</span>
+lcm_remember(key=<span class="str">"decision.database"</span>, value=<span class="str">"MySQL — cheaper licence for our scale"</span>)
+<span class="cmt"># → response includes: {"updated": true, "previous_value": "Postgres"}</span>
+<span class="cmt">#    Agent can warn the user about the change before overwriting</span></div>
+      </div>
+
+      <h3 class="sub-title">Python API</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">FactStore.link / recall_related</span><span class="cb-lang">python</span></div>
+        <div class="cb-body">engine._facts.link(<span class="str">"decision.database"</span>, <span class="str">"service.auth"</span>, scope=<span class="str">"global"</span>)
+
+related = engine._facts.recall_related(<span class="str">"decision.database"</span>, scope=<span class="str">"global"</span>)
+<span class="cmt"># Returns facts connected via related_keys AND facts sharing any tag</span>
+
+tagged = engine._facts.recall_query(tag=<span class="str">"auth"</span>, scope=<span class="str">"global"</span>)</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ AUTO MEMORY ══════════════ -->
+    <section class="doc-section" id="auto-memory">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Auto Memory</h2>
+      <p class="sec-lead">Three automatic features that populate and inject memory without the agent needing to call tools: <strong>Auto Injection</strong>, <strong>Auto Extraction</strong>, and <strong>Salience Pinning</strong>.</p>
+
+      <h3 class="sub-title" style="margin-top:0">Auto Memory Injection</h3>
+      <p>Before each compression, LCM extracts keywords from the last 2–3 user messages, searches the fact store and message history per keyword, and prepends a compact <code>[Recalled Memory]</code> block to the system message. The agent never needs to call <code>lcm_recall</code> manually.</p>
+
+      <div class="callout tip">
+        <strong>Why this matters</strong>
+        The model has to decide to check memory — and it often doesn't. Auto injection removes that decision entirely. Relevant facts surface automatically whenever the conversation topic matches stored context.
+      </div>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">enabling auto injection</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">openlcm.core.config</span> <span class="kw">import</span> <span class="cls">LCMConfig</span>
+
+config = <span class="cls">LCMConfig</span>.from_env()
+config.auto_inject_memory  = <span class="num">True</span>   <span class="cmt"># or LCM_AUTO_INJECT_MEMORY=true</span>
+config.auto_inject_top_k   = <span class="num">5</span>      <span class="cmt"># max facts injected per turn</span>
+
+<span class="cmt"># The injected block looks like this (ephemeral — never stored in SQLite):</span>
+<span class="cmt"># [Recalled Memory]</span>
+<span class="cmt"># [constraint] constraint.no_production_push: Never push without review.</span>
+<span class="cmt"># [preference] user.preferred_test_framework: pytest</span></div>
+      </div>
+
+      <h3 class="sub-title">Auto-Extraction to Facts</h3>
+      <p>After every new D0 summary node is created, LCM fires an async LLM pass over the summary text to extract decisions, preferences, and constraints — and auto-populates the fact store. The fact store self-fills as a side-effect of compression.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">enabling auto extraction</span><span class="cb-lang">python</span></div>
+        <div class="cb-body">config.extraction_to_facts_enabled = <span class="num">True</span>  <span class="cmt"># or LCM_EXTRACTION_TO_FACTS_ENABLED=true</span>
+
+<span class="cmt"># After the first compaction, the fact store will contain entries like:</span>
+<span class="cmt">#   decision.auth_approach → "JWT with RS256, 24h expiry"  (auto-extracted)</span>
+<span class="cmt">#   constraint.no_prod_deploy → "Agreed: require review"    (auto-extracted)</span>
+<span class="cmt"># The agent never called lcm_remember — it happened automatically.</span></div>
+      </div>
+
+      <div class="callout info">
+        <strong>Non-blocking</strong>
+        Auto-extraction runs as <code>asyncio.ensure_future()</code> after the summary node is written. It does not block the compression path or the agent turn.
+      </div>
+
+      <h3 class="sub-title">Salience Auto-Pinning</h3>
+      <p>During message ingestion, messages that match high-salience patterns are automatically pinned via the existing <code>pin()</code> mechanism. Pinned messages are never eligible for compression and always appear in the fresh tail.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">enabling salience pinning</span><span class="cb-lang">python</span></div>
+        <div class="cb-body">config.auto_pin_patterns = [<span class="str">"constraint"</span>, <span class="str">"error"</span>, <span class="str">"correction"</span>]
+<span class="cmt"># or: LCM_AUTO_PIN_PATTERNS=constraint,error,correction</span>
+
+<span class="cmt"># Pattern groups:</span>
+<span class="cmt">#   constraint  → messages containing IMPORTANT:, never, must not, always, do not</span>
+<span class="cmt">#   error       → Traceback (most recent call last), Error:, Exception:</span>
+<span class="cmt">#   correction  → user messages starting with "No,", "Wait,", "Actually,"</span></div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SEMANTIC SEARCH ══════════════ -->
+    <section class="doc-section" id="semantic">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Semantic Search</h2>
+      <p class="sec-lead">Optional vector embeddings on DAG summary nodes and facts, stored in the same SQLite file via <code>sqlite-vec</code>. Zero extra infrastructure. Off by default — enable with a single env var.</p>
+
+      <h3 class="sub-title" style="margin-top:0">How it works</h3>
+      <div class="step-list">
+        <div class="step-li"><div class="step-num">1</div><div>After each new D0 node or fact upsert, LCM fires an async embedding call using <code>LCM_EMBEDDING_MODEL</code>.</div></div>
+        <div class="step-li"><div class="step-num">2</div><div>Embeddings are stored as <code>float32</code> blobs in <code>lcm_embeddings(content_type, content_id, embedding)</code> in the same <code>.db</code> file.</div></div>
+        <div class="step-li"><div class="step-num">3</div><div><code>lcm_semantic_search(query)</code> embeds the query and returns cosine-similarity ranked hits enriched with summary text or fact values.</div></div>
+      </div>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">enabling semantic search</span><span class="cb-lang">shell</span></div>
+        <div class="cb-body"><span class="cmt"># Install sqlite-vec and set the embedding model</span>
+pip install sqlite-vec
+<span class="kw">export</span> LCM_EMBEDDING_MODEL=openai/text-embedding-3-small
+
+<span class="cmt"># Or any other LiteLLM-compatible embedding provider:</span>
+<span class="kw">export</span> LCM_EMBEDDING_MODEL=anthropic/voyage-3
+<span class="kw">export</span> LCM_EMBEDDING_MODEL=google/text-embedding-004</div>
+      </div>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">lcm_semantic_search — the agent calls this</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Find relevant nodes/facts by meaning, not just keywords</span>
+lcm_semantic_search(
+    query=<span class="str">"auth token expiry"</span>,
+    limit=<span class="num">10</span>,
+    content_type=<span class="str">"all"</span>,   <span class="cmt"># "node", "fact", or "all"</span>
+)
+<span class="cmt"># → Returns cosine-ranked hits. "JWT 24h expiry" found even without those exact words.</span>
+
+<span class="cmt"># When LCM_EMBEDDING_MODEL is not set, returns a helpful fallback:</span>
+<span class="cmt"># "Embedding model not configured — use lcm_grep for keyword search."</span></div>
+      </div>
+
+      <div class="callout tip">
+        <strong>What gets embedded</strong>
+        Only DAG summary nodes and facts — NOT raw messages. Summary nodes are already small, dense, semantically rich chunks. Embedding every raw message would be expensive and noisy; FTS5 on raw messages is sufficient.
+      </div>
+
+      <h3 class="sub-title">Graceful degradation</h3>
+      <p>If <code>sqlite-vec</code> is not installed or <code>LCM_EMBEDDING_MODEL</code> is not set, <code>EmbeddingStore</code> is a complete no-op — no errors, no warnings at startup. <code>lcm_semantic_search</code> returns a hint message pointing to <code>lcm_grep</code>. No existing functionality is affected.</p>
+
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">Python API</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="cmt"># Direct access to EmbeddingStore</span>
+<span class="kw">from</span> <span class="imp">openlcm.core.embeddings</span> <span class="kw">import</span> <span class="cls">EmbeddingStore</span>
+
+store = <span class="cls">EmbeddingStore</span>(db_path, embedding_model=<span class="str">"openai/text-embedding-3-small"</span>)
+
+<span class="kw">if</span> store.enabled:
+    <span class="kw">await</span> store.embed(<span class="str">"fact"</span>, fact_id, fact_value)
+    results = <span class="kw">await</span> store.search(<span class="str">"auth token"</span>, content_type=<span class="str">"fact"</span>, limit=<span class="num">5</span>)
+    <span class="cmt"># results: [{"content_type": "fact", "content_id": 3, "distance": 0.12, ...}]</span></div>
+      </div>
+    </section>
+
     <!-- ══════════════ DASHBOARD ══════════════ -->
     <section class="doc-section" id="viz">
       <span class="sec-label">reference</span>
@@ -1118,7 +1320,8 @@ openlcm viz --db ~/.openlcm/app.db   <span class="cmt"># point at a specific DB<
         <thead><tr><th>Panel</th><th>Shows</th></tr></thead>
         <tbody>
           <tr><td>Token Pressure Gauge</td><td>Live prompt token count vs threshold and max. Green → amber → red.</td></tr>
-          <tr><td>Summary DAG Viewer</td><td>Live tree of all DAG nodes grouped by depth (D0/D1/D2). Compression ratio per node.</td></tr>
+          <tr><td>Summary DAG Viewer</td><td>Live tree of all DAG nodes grouped by depth (D0/D1/D2). Compression ratio per node. Click any node to view full summary text.</td></tr>
+          <tr><td>Persistent Memory</td><td>All stored facts for the current session and global scope. Tag chips shown on each row. Filter by text or category. ＋ Add button opens a modal with key, value, category, scope, and tags fields.</td></tr>
           <tr><td>SQLite Store</td><td>Every raw message with role badge, token estimate, and full content viewer. Tool calls shown with amber TOOL badge.</td></tr>
           <tr><td>Event Log</td><td>Chronological stream: session_bound, compaction_start, node_added, compaction_end, token_pressure.</td></tr>
           <tr><td>Sessions List</td><td>All sessions in the DB. Click to drill into any session's full history.</td></tr>
@@ -1179,6 +1382,11 @@ openlcm expand NODE_ID [--session SESSION_ID]</div>
           <tr><td>condensation_fanin</td><td>int</td><td>4</td><td>Number of D0 nodes before a D1 arc is created.</td></tr>
           <tr><td>dynamic_leaf_chunk_enabled</td><td>bool</td><td>False</td><td>Auto-tune leaf_chunk_tokens based on observed turn sizes.</td></tr>
           <tr><td>dynamic_leaf_chunk_max</td><td>int</td><td>40000</td><td>Upper bound for dynamic leaf chunk tuning.</td></tr>
+          <tr><td>auto_inject_memory</td><td>bool</td><td>False</td><td>Auto-inject relevant facts and history into system message before each compression.</td></tr>
+          <tr><td>auto_inject_top_k</td><td>int</td><td>5</td><td>Max facts to surface per compression when auto-injection is enabled.</td></tr>
+          <tr><td>extraction_to_facts_enabled</td><td>bool</td><td>False</td><td>Auto-extract facts from each new D0 summary node into the persistent fact store.</td></tr>
+          <tr><td>auto_pin_patterns</td><td>list[str]</td><td>[]</td><td>Named pattern groups to auto-pin matching messages: <code>constraint</code>, <code>error</code>, <code>correction</code>.</td></tr>
+          <tr><td>embedding_model</td><td>str</td><td>""</td><td>LiteLLM model string for vector embeddings. Empty = semantic search disabled.</td></tr>
         </tbody>
       </table>
     </section>

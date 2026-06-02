@@ -14,7 +14,7 @@ from typing import Iterable, Sequence
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 _MIN_DISK_SPACE_BYTES = 50 * 1024 * 1024
 REQUIRED_CORE_TABLES = (
@@ -24,6 +24,7 @@ REQUIRED_CORE_TABLES = (
     "lcm_lifecycle_state",
     "lcm_migration_state",
     "lcm_facts",
+    "lcm_embeddings",
     "messages_fts",
     "nodes_fts",
 )
@@ -451,6 +452,31 @@ def _ensure_facts_table(conn: sqlite3.Connection) -> None:
     """)
 
 
+def _ensure_facts_v6_columns(conn: sqlite3.Connection) -> None:
+    """Add tags + related_keys columns to lcm_facts for existing v5 databases."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(lcm_facts)").fetchall()}
+    if "tags" not in cols:
+        conn.execute("ALTER TABLE lcm_facts ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+    if "related_keys" not in cols:
+        conn.execute("ALTER TABLE lcm_facts ADD COLUMN related_keys TEXT NOT NULL DEFAULT '[]'")
+
+
+def _ensure_embeddings_table(conn: sqlite3.Connection) -> None:
+    """Create lcm_embeddings table for optional semantic vector search."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lcm_embeddings (
+            emb_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_type  TEXT NOT NULL,
+            content_id    INTEGER NOT NULL,
+            model         TEXT NOT NULL DEFAULT '',
+            embedding     BLOB NOT NULL,
+            created_at    REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_emb_content
+            ON lcm_embeddings(content_type, content_id, model);
+    """)
+
+
 def run_versioned_migrations(conn: sqlite3.Connection) -> None:
     ensure_metadata_table(conn)
     ensure_migration_state_table(conn)
@@ -476,5 +502,11 @@ def run_versioned_migrations(conn: sqlite3.Connection) -> None:
     if current_version < 5:
         mark_migration_step_complete(conn, "v5_fact_store")
         current_version = 5
+
+    _ensure_facts_v6_columns(conn)
+    _ensure_embeddings_table(conn)
+    if current_version < 6:
+        mark_migration_step_complete(conn, "v6_fact_graph_embeddings")
+        current_version = 6
 
     set_schema_version(conn, current_version)
