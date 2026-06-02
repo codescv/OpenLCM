@@ -274,6 +274,134 @@ LCM_DOCTOR = {
     },
 }
 
+LCM_REMEMBER = {
+    "name": "lcm_remember",
+    "description": (
+        "Store or update a persistent fact, preference, constraint, or decision that should survive "
+        "across sessions. Use this whenever the user states something durable: a preference "
+        "(\"I prefer pytest\"), a project constraint (\"don't push to production without review\"), "
+        "a decision (\"we chose Postgres over MySQL on 2025-04-01\"), or any fact that the agent "
+        "should carry forward into future conversations. "
+        "Facts are keyed by (scope, key) and upserted — calling lcm_remember with an existing key "
+        "updates its value. Default scope is 'global' (shared across all sessions). "
+        "Use scope='current' to store a fact private to the current session."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "key": {
+                "type": "string",
+                "description": (
+                    "Stable identifier for this fact, using dot-notation for namespacing. "
+                    "Examples: 'user.preferred_test_framework', 'project.deadline', "
+                    "'constraint.no_production_pushes', 'decision.database_choice'."
+                ),
+            },
+            "value": {
+                "type": "string",
+                "description": "The fact content. Plain text or JSON string for structured values.",
+            },
+            "scope": {
+                "type": "string",
+                "description": (
+                    "'global' (default) — visible to all sessions in this database. "
+                    "'current' — private to the current session. "
+                    "Any other string is treated as an explicit session_id scope."
+                ),
+                "default": "global",
+            },
+            "category": {
+                "type": "string",
+                "enum": ["fact", "preference", "constraint", "decision"],
+                "description": (
+                    "Semantic category of the stored item. Helps lcm_recall filter by type. "
+                    "'preference': user style/tooling preferences. "
+                    "'constraint': hard rules the agent must not violate. "
+                    "'decision': recorded choices with context. "
+                    "'fact': general knowledge about the project or user."
+                ),
+                "default": "fact",
+            },
+        },
+        "required": ["key", "value"],
+    },
+}
+
+LCM_RECALL = {
+    "name": "lcm_recall",
+    "description": (
+        "Retrieve persistent facts, preferences, constraints, or decisions previously stored with lcm_remember. "
+        "Call this at the start of a new session (or before any consequential action) to load relevant "
+        "durable context that would otherwise be invisible to the model. "
+        "Three modes: (1) exact key lookup via 'key', (2) substring search via 'query', "
+        "(3) no filter — returns all facts. "
+        "Scope defaults to all scopes (global + all sessions); narrow with scope='global' or scope='current'."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "key": {
+                "type": "string",
+                "description": (
+                    "Exact key to look up (e.g. 'user.preferred_test_framework'). "
+                    "When provided, returns a single fact or found=false. "
+                    "Mutually exclusive with query."
+                ),
+            },
+            "query": {
+                "type": "string",
+                "description": (
+                    "Substring to search across all fact keys and values. "
+                    "Returns all matching facts ordered by most recently updated."
+                ),
+            },
+            "scope": {
+                "type": "string",
+                "description": (
+                    "Limit results to a specific scope. "
+                    "'global' returns only global facts. "
+                    "'current' returns facts for the current session. "
+                    "Omit to search across all scopes (recommended at session start)."
+                ),
+            },
+            "category": {
+                "type": "string",
+                "enum": ["fact", "preference", "constraint", "decision"],
+                "description": "Optionally filter by category.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum facts to return (default 20, hard cap 100).",
+                "default": 20,
+            },
+        },
+        "required": [],
+    },
+}
+
+LCM_FORGET = {
+    "name": "lcm_forget",
+    "description": (
+        "Delete a stored fact by key and scope. Use when a fact is no longer true or relevant — "
+        "for example, if a deadline was cancelled, a preference changed, or a constraint was lifted."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "key": {
+                "type": "string",
+                "description": "Exact key of the fact to delete.",
+            },
+            "scope": {
+                "type": "string",
+                "description": "'global' (default) or 'current' for the current session.",
+                "default": "global",
+            },
+        },
+        "required": ["key"],
+    },
+}
+
 LCM_EXPAND_QUERY = {
     "name": "lcm_expand_query",
     "description": (

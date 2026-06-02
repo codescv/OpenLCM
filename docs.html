@@ -206,6 +206,7 @@
     <div class="sb-group">
       <span class="sb-group-label">reference</span>
       <a href="#converters" class="sb-link"><div class="sb-dot"></div>message converters</a>
+      <a href="#memory"     class="sb-link"><div class="sb-dot"></div>persistent memory</a>
       <a href="#viz"        class="sb-link"><div class="sb-dot"></div>dashboard</a>
       <a href="#cli"        class="sb-link"><div class="sb-dot"></div>CLI reference</a>
       <a href="#api"        class="sb-link"><div class="sb-dot"></div>API reference</a>
@@ -956,6 +957,133 @@ lcm_msgs  = converter.to_lcm(messages)</div>
 
 <span class="cmt"># Tool result</span>
 {<span class="str">"role"</span>: <span class="str">"tool"</span>, <span class="str">"content"</span>: <span class="str">"{\"temp_c\": 22}"</span>, <span class="str">"tool_call_id"</span>: <span class="str">"tc_1"</span>, <span class="str">"name"</span>: <span class="str">"get_weather"</span>}</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ PERSISTENT MEMORY ══════════════ -->
+    <section class="doc-section" id="memory">
+      <span class="sec-label">reference</span>
+      <h2 class="sec-title">Persistent Memory</h2>
+      <p class="sec-lead">LCM's fact store gives agents durable memory that survives session boundaries — preferences, constraints, decisions, and project facts that stay true across conversations.</p>
+
+      <h3 class="sub-title" style="margin-top:0">The problem it solves</h3>
+      <p>The DAG compresses and retrieves <em>conversation history</em>. But some things aren't history — they're standing truths: "the user prefers pytest", "don't push to production without a review", "we chose Postgres on 2025-04-01". These facts should be present at the start of every new session, not buried under 40 turns of old conversation.</p>
+      <p>The fact store is a separate key-value layer in the same SQLite database, queryable independently of the message store or DAG.</p>
+
+      <h3 class="sub-title">The three tools</h3>
+      <div class="table-wrap">
+        <table class="ref-table">
+          <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>lcm_remember(key, value)</code></td><td>Store or update a fact. Upserts on <code>(scope, key)</code>.</td></tr>
+            <tr><td><code>lcm_recall()</code></td><td>Retrieve facts — by exact key, substring query, or list all.</td></tr>
+            <tr><td><code>lcm_forget(key)</code></td><td>Delete a fact when it's no longer true.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub-title">Storing facts</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">lcm_remember — the agent calls this</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Store a user preference (global scope = survives all future sessions)</span>
+lcm_remember(
+    key=<span class="str">"user.preferred_test_framework"</span>,
+    value=<span class="str">"pytest"</span>,
+    category=<span class="str">"preference"</span>
+)
+
+<span class="cmt"># Record a project constraint</span>
+lcm_remember(
+    key=<span class="str">"constraint.no_production_push"</span>,
+    value=<span class="str">"Never push to production without a peer review. Agreed 2025-06-01."</span>,
+    category=<span class="str">"constraint"</span>
+)
+
+<span class="cmt"># Record a decision with context</span>
+lcm_remember(
+    key=<span class="str">"decision.database"</span>,
+    value=<span class="str">"Chose Postgres over MySQL — better JSON support needed for events table."</span>,
+    category=<span class="str">"decision"</span>
+)</div>
+      </div>
+
+      <h3 class="sub-title">Recalling facts</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">lcm_recall — at session start or before consequential actions</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Load all facts at session start (no args = everything)</span>
+lcm_recall()
+
+<span class="cmt"># Load only constraints — e.g. before any tool call that mutates state</span>
+lcm_recall(category=<span class="str">"constraint"</span>)
+
+<span class="cmt"># Look up a specific fact</span>
+lcm_recall(key=<span class="str">"user.preferred_test_framework"</span>)
+
+<span class="cmt"># Search by keyword</span>
+lcm_recall(query=<span class="str">"database"</span>)</div>
+      </div>
+
+      <h3 class="sub-title">Scope</h3>
+      <p><code>scope="global"</code> (default) makes a fact visible across all sessions. <code>scope="current"</code> scopes it to the current session only. You can also pass any explicit <code>session_id</code> string as a scope for finer isolation.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">scoped facts</span><span class="cb-lang">tool call</span></div>
+        <div class="cb-body"><span class="cmt"># Global: visible to every future session</span>
+lcm_remember(key=<span class="str">"user.timezone"</span>, value=<span class="str">"America/New_York"</span>, scope=<span class="str">"global"</span>)
+
+<span class="cmt"># Session-local: private to the current conversation</span>
+lcm_remember(key=<span class="str">"task.active_branch"</span>, value=<span class="str">"feat/auth-rewrite"</span>, scope=<span class="str">"current"</span>)
+
+<span class="cmt"># Recall only global facts</span>
+lcm_recall(scope=<span class="str">"global"</span>)
+
+<span class="cmt"># Recall global + current session facts (no scope filter)</span>
+lcm_recall()</div>
+      </div>
+
+      <h3 class="sub-title">Categories</h3>
+      <div class="table-wrap">
+        <table class="ref-table">
+          <thead><tr><th>Category</th><th>Use for</th></tr></thead>
+          <tbody>
+            <tr><td><code>preference</code></td><td>User style/tooling choices (test framework, code style, verbosity)</td></tr>
+            <tr><td><code>constraint</code></td><td>Hard rules the agent must not violate</td></tr>
+            <tr><td><code>decision</code></td><td>Recorded choices with rationale and date</td></tr>
+            <tr><td><code>fact</code></td><td>General project or user knowledge (default)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub-title">Direct Python API</h3>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">FactStore accessed from the engine</span><span class="cb-lang">python</span></div>
+        <div class="cb-body"><span class="kw">from</span> <span class="imp">openlcm</span> <span class="kw">import</span> LCMEngine
+
+engine = LCMEngine(model=<span class="str">"anthropic/claude-haiku-4-5-20251001"</span>)
+engine.bind_session(<span class="str">"my-session"</span>, context_length=<span class="num">200_000</span>)
+
+<span class="cmt"># Store a fact directly (no agent round-trip needed)</span>
+engine._facts.remember(
+    <span class="str">"user.preferred_test_framework"</span>,
+    <span class="str">"pytest"</span>,
+    scope=<span class="str">"global"</span>,
+    category=<span class="str">"preference"</span>,
+    source_session_id=engine.current_session_id,
+)
+
+<span class="cmt"># Recall all global facts at session start</span>
+facts = engine._facts.recall_query(scope=<span class="str">"global"</span>, limit=<span class="num">100</span>)
+<span class="kw">for</span> f <span class="kw">in</span> facts:
+    <span class="fn">print</span>(f[<span class="str">"key"</span>], <span class="str">"→"</span>, f[<span class="str">"value"</span>])</div>
+      </div>
+
+      <h3 class="sub-title">Recommended session start pattern</h3>
+      <p>Call <code>lcm_recall()</code> as the first tool call in every new session. This re-injects preferences, constraints, and decisions that would otherwise be invisible to the model at turn 1.</p>
+      <div class="code-block">
+        <div class="cb-head"><span class="cb-title">system prompt hint</span><span class="cb-lang">text</span></div>
+        <div class="cb-body">At the start of each session, call lcm_recall() to load all persistent
+facts, preferences, and constraints about this user and project.
+Call lcm_recall(category="constraint") before any tool call that
+modifies state.</div>
       </div>
     </section>
 

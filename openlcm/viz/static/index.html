@@ -68,6 +68,11 @@
       <div class="sc-val" id="ov-dag-nodes">0</div>
       <div class="sc-lbl">DAG Nodes</div>
     </div>
+    <div class="stat-card sc-indigo">
+      <div class="sc-icon">◆</div>
+      <div class="sc-val" id="ov-facts">0</div>
+      <div class="sc-lbl">Stored Facts</div>
+    </div>
   </div>
 
   <!-- Sessions table + activity feed -->
@@ -168,6 +173,20 @@
           <div class="mg-card"><div class="mg-v" id="sc-nodes">0</div><div class="mg-k">dag nodes</div></div>
         </div>
         <div class="sess-meta" id="sess-meta"></div>
+      </div>
+
+      <div class="lsec" id="lsec-memory">
+        <div class="mem-hdr">
+          <span class="sec-title" style="margin-bottom:0">PERSISTENT MEMORY</span>
+          <span class="fact-total-badge" id="fact-count">0</span>
+          <button class="add-fact-btn" onclick="showAddFactModal()" title="Store a new fact">＋ Add</button>
+        </div>
+        <div class="fact-filter-row">
+          <input type="text" class="fact-search-input" id="fact-search" placeholder="Filter facts…" autocomplete="off" oninput="renderFacts()"/>
+        </div>
+        <div class="fact-list" id="fact-list">
+          <div class="fact-empty">No facts yet — agents use <code>lcm_remember</code> or click ＋</div>
+        </div>
       </div>
 
       <div class="lsec lsec-grow">
@@ -279,6 +298,46 @@
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeModal()">Cancel</button>
       <button class="modal-confirm" id="modal-confirm-btn" onclick="executeConfirmedAction()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add-Fact overlay ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="add-fact-overlay" onclick="closeAddFactModal(event)" style="display:none">
+  <div class="modal add-fact-modal">
+    <div class="modal-icon">◆</div>
+    <h2 class="modal-title">Store a Fact</h2>
+    <div class="af-form">
+      <div class="af-row">
+        <label class="af-label">Key <span class="af-hint">(dot-notation)</span></label>
+        <input class="af-input" id="af-key" type="text" placeholder="e.g. user.preferred_framework" autocomplete="off"/>
+      </div>
+      <div class="af-row">
+        <label class="af-label">Value</label>
+        <textarea class="af-textarea" id="af-value" rows="3" placeholder="e.g. pytest"></textarea>
+      </div>
+      <div class="af-row af-row-2">
+        <div>
+          <label class="af-label">Category</label>
+          <select class="af-select" id="af-category">
+            <option value="fact">fact</option>
+            <option value="preference">preference</option>
+            <option value="constraint">constraint</option>
+            <option value="decision">decision</option>
+          </select>
+        </div>
+        <div>
+          <label class="af-label">Scope</label>
+          <select class="af-select" id="af-scope">
+            <option value="global">global</option>
+            <option value="current">current session</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAddFactModal()">Cancel</button>
+      <button class="modal-confirm" onclick="submitAddFact()">Store Fact</button>
     </div>
   </div>
 </div>

@@ -9,6 +9,7 @@ const S = {
   engine: null,
   dag: null,
   messages: [],
+  facts: [],
   selNode: null,
   selectedNodeData: null,
   pressure: { prompt: 0, threshold: 0, max: 0, ratio: 0 },
@@ -150,6 +151,11 @@ function handleEvent(ev) {
       if (S.page === 'overview') pollOverview();
       if (S.page === 'session') { fetchStatus(); fetchDAG(); fetchMessages(); }
       break;
+    case 'fact_stored':
+    case 'fact_deleted':
+      if (S.page === 'session') fetchFacts();
+      if (S.page === 'overview') pollOverview();
+      break;
   }
 }
 
@@ -195,6 +201,7 @@ function renderOverview() {
   set('ov-freed', fmt(t.tokens_freed || 0));
   set('ov-cost-saved', `≈ ${fmtCost(t.tokens_freed || 0)} saved`);
   set('ov-dag-nodes', fmt(t.dag_nodes || 0));
+  set('ov-facts', fmt(t.facts || 0));
   set('ov-session-count', `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`);
 
   const tbody = document.getElementById('sessions-tbody');
@@ -263,6 +270,7 @@ function startSessionDetail(sid) {
   S.engine = null;
   S.dag = null;
   S.messages = [];
+  S.facts = [];
   S.selNode = null;
   S.selectedNodeData = null;
   S.pressure = { prompt: 0, threshold: 0, max: 0, ratio: 0 };
@@ -274,13 +282,13 @@ function startSessionDetail(sid) {
   // Wire close
   document.getElementById('nd-close').onclick = closeNodeDetail;
 
-  Promise.all([fetchStatus(), fetchDAG(), fetchMessages(), loadEventHistory()]);
+  Promise.all([fetchStatus(), fetchDAG(), fetchMessages(), fetchFacts(), loadEventHistory()]);
   _sessInterval = setInterval(pollSession, 8000);
 }
 
 function pollSession() {
   if (!S.sessionId) return;
-  Promise.all([fetchStatus(), fetchDAG(), fetchMessages()]);
+  Promise.all([fetchStatus(), fetchDAG(), fetchMessages(), fetchFacts()]);
 }
 
 async function fetchStatus() {
@@ -394,6 +402,8 @@ function logDet(type, d) {
     case 'token_pressure':   return `${fmtN(d.prompt_tokens)}/${fmtN(d.threshold_tokens)} (${(d.ratio * 100).toFixed(0)}%)`;
     case 'message_ingested': return `${d.role} #${d.store_id}`;
     case 'compaction_start': return `${fmtN(d.prompt_tokens)}t`;
+    case 'fact_stored':  return `${d.key} [${d.category}] scope:${d.scope}`;
+    case 'fact_deleted': return `${d.key} scope:${d.scope}`;
     default: return JSON.stringify(d).slice(0, 60);
   }
 }
@@ -910,9 +920,14 @@ function colorizeJSON(obj) {
 
 // ── API helper ────────────────────────────────────────────────────────────────
 
-async function apiFetch(descriptor) {
+async function apiFetch(descriptor, body) {
   const [method, url] = descriptor.split(' ');
-  const r = await fetch(url, { method });
+  const opts = { method };
+  if (body !== undefined) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(url, opts);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
@@ -964,4 +979,115 @@ function timeAgo(ts) {
   if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
   return `${Math.round(diff / 86400)}d ago`;
+}
+
+// ── Persistent Memory (Fact Store) ────────────────────────────────────────────
+
+async function fetchFacts() {
+  try {
+    const r = await fetch('/api/facts');
+    if (!r.ok) return;
+    S.facts = (await r.json()).facts || [];
+    renderFacts();
+  } catch (_) {}
+}
+
+function renderFacts() {
+  const el = $('fact-list');
+  const countEl = $('fact-count');
+  if (!el) return;
+
+  const query = (($('fact-search') || {}).value || '').toLowerCase();
+  let facts = S.facts;
+  if (query) facts = facts.filter(f =>
+    (f.key || '').toLowerCase().includes(query) ||
+    (f.value || '').toLowerCase().includes(query) ||
+    (f.category || '').toLowerCase().includes(query)
+  );
+
+  if (countEl) countEl.textContent = S.facts.length;
+
+  if (!facts.length) {
+    el.innerHTML = query
+      ? `<div class="fact-empty">No facts match "${esc(query)}"</div>`
+      : '<div class="fact-empty">No facts yet — agents use <code>lcm_remember</code> or click ＋</div>';
+    return;
+  }
+
+  el.innerHTML = facts.map(f => {
+    const scopeLabel = f.scope === 'global' ? 'global' : 'session';
+    const scopeCls   = f.scope === 'global'  ? 'fact-scope-global' : 'fact-scope-session';
+    const catCls     = `fact-cat-${f.category || 'fact'}`;
+    const safeScope  = esc(f.scope || 'global');
+    const safeKey    = esc(f.key || '');
+    const safeVal    = esc((f.value || '').slice(0, 180));
+    const updated    = f.updated_at ? timeAgo(f.updated_at) : '';
+    return `<div class="fact-row" title="${safeKey}">
+      <div class="fact-header">
+        <span class="fact-key">${safeKey}</span>
+        <div class="fact-badges">
+          <span class="fact-badge ${scopeCls}">${esc(scopeLabel)}</span>
+          <span class="fact-badge ${catCls}">${esc(f.category || 'fact')}</span>
+        </div>
+        <button class="fact-del-btn" onclick="deleteFact('${safeScope}','${safeKey.replace(/'/g, "\\'")}')" title="Delete fact">✕</button>
+      </div>
+      <div class="fact-value">${safeVal}${(f.value || '').length > 180 ? '…' : ''}</div>
+      ${updated ? `<div style="font-size:9px;color:var(--text-dim);margin-top:3px">${esc(updated)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function showAddFactModal() {
+  const overlay = $('add-fact-overlay');
+  if (!overlay) return;
+  const keyEl = $('af-key'); if (keyEl) keyEl.value = '';
+  const valEl = $('af-value'); if (valEl) valEl.value = '';
+  const catEl = $('af-category'); if (catEl) catEl.value = 'fact';
+  const scopeEl = $('af-scope'); if (scopeEl) scopeEl.value = 'global';
+  overlay.style.display = 'flex';
+  setTimeout(() => { if (keyEl) keyEl.focus(); }, 50);
+}
+
+function closeAddFactModal(event) {
+  if (event && event.target !== $('add-fact-overlay')) return;
+  const overlay = $('add-fact-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function submitAddFact() {
+  const key      = (($('af-key') || {}).value || '').trim();
+  const value    = (($('af-value') || {}).value || '').trim();
+  const category = ($('af-category') || {}).value || 'fact';
+  const scope    = ($('af-scope') || {}).value || 'global';
+
+  if (!key || !value) { toast('error', 'Key and value are required'); return; }
+
+  const resolvedScope = scope === 'current'
+    ? (S.sessionId || 'global')
+    : scope;
+
+  try {
+    const r = await apiFetch('POST /api/facts', { key, value, category, scope: resolvedScope });
+    if (r && r.fact_id) {
+      toast('success', `Stored: ${key}`);
+      closeAddFactModal();
+      fetchFacts();
+    }
+  } catch (e) {
+    toast('error', 'Failed to store fact');
+  }
+}
+
+function deleteFact(scope, key) {
+  showModal({
+    icon: '◆',
+    title: 'Delete Fact',
+    body: `Delete fact <strong style="font-family:var(--mono)">${esc(key)}</strong> (scope: ${esc(scope)})?`,
+    confirmText: 'Delete',
+    onConfirm: async () => {
+      await apiFetch('DELETE /api/facts', { key, scope });
+      toast('success', `Fact deleted: ${key}`);
+      fetchFacts();
+    },
+  });
 }

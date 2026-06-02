@@ -666,6 +666,7 @@
         <div class="cc-item"><span style="color:var(--green)">+</span><span>Every message persisted verbatim in SQLite</span></div>
         <div class="cc-item"><span style="color:var(--green)">+</span><span>Hierarchical DAG — D0 leaf → D1 arc → D2 durable</span></div>
         <div class="cc-item"><span style="color:var(--green)">+</span><span>Agent drills back with <code>lcm_grep</code>, <code>lcm_expand</code></span></div>
+        <div class="cc-item"><span style="color:var(--green)">+</span><span>Preferences &amp; constraints persist across sessions with <code>lcm_remember</code></span></div>
       </div>
     </div>
   </div>
@@ -867,6 +868,7 @@
         <div class="step-li"><div class="step-num-cli">2</div><div><h4>Compact</h4><p>When pressure crosses threshold, oldest messages are summarized into D0 leaf nodes. 3-level escalation: L1 detail → L2 bullets → L3 deterministic.</p><span class="step-tag">3-level escalation · circuit breaker</span></div></div>
         <div class="step-li"><div class="step-num-cli">3</div><div><h4>Condense</h4><p>When enough D0 nodes accumulate, they merge into D1 arcs. D1s merge into D2 durable history. Depth is unbounded.</p><span class="step-tag">DAG · D0 → D1 → D2 → ...</span></div></div>
         <div class="step-li"><div class="step-num-cli">4</div><div><h4>Retrieve</h4><p>Agent uses <code>lcm_grep</code> (FTS5), <code>lcm_expand</code> (recover source), or <code>lcm_expand_query</code> (synthesize) to access any past moment.</p><span class="step-tag">lcm_grep · lcm_expand · lcm_expand_query</span></div></div>
+        <div class="step-li"><div class="step-num-cli">5</div><div><h4>Remember</h4><p>Preferences, constraints, and decisions persist across sessions in the fact store. <code>lcm_remember</code> saves. <code>lcm_recall</code> loads at session start. Nothing re-explained.</p><span class="step-tag">lcm_remember · lcm_recall · lcm_forget</span></div></div>
       </div>
     </div>
   </div>
@@ -883,6 +885,7 @@
       <div class="g-cell reveal r1"><div class="g-head"><span class="g-sym">◈</span><div class="g-title">Lossless Retrievability</div></div><p class="g-body">Every message persisted with stable <code>store_id</code>. Recoverable even if compacted 10 sessions ago.</p><span class="g-tag">lcm_expand · lcm_grep · lcm_load_session</span></div>
       <div class="g-cell reveal r2"><div class="g-head"><span class="g-sym">✓</span><div class="g-title">Deterministic Convergence</div></div><p class="g-body">Summarization always terminates. L1 → L2 → L3 deterministic truncation. Circuit breaker prevents retry storms.</p><span class="g-tag">L1 → L2 → L3 · SummaryCircuitBreaker</span></div>
       <div class="g-cell reveal r3"><div class="g-head"><span class="g-sym">⚡</span><div class="g-title">Zero-Cost Continuity</div></div><p class="g-body">Short conversations pay zero overhead. Compaction only fires when the configurable threshold is exceeded.</p><span class="g-tag">LCM_CONTEXT_THRESHOLD=0.75</span></div>
+      <div class="g-cell reveal r1"><div class="g-head"><span class="g-sym">◆</span><div class="g-title">Cross-Session Memory</div></div><p class="g-body">Preferences, constraints, and decisions survive session boundaries. <code>lcm_remember</code> saves. <code>lcm_recall</code> reloads. Nothing re-explained.</p><span class="g-tag">lcm_remember · lcm_recall · lcm_forget</span></div>
     </div>
   </div>
 </section>

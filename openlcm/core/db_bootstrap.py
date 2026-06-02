@@ -14,7 +14,7 @@ from typing import Iterable, Sequence
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 _MIN_DISK_SPACE_BYTES = 50 * 1024 * 1024
 REQUIRED_CORE_TABLES = (
@@ -23,6 +23,7 @@ REQUIRED_CORE_TABLES = (
     "summary_nodes",
     "lcm_lifecycle_state",
     "lcm_migration_state",
+    "lcm_facts",
     "messages_fts",
     "nodes_fts",
 )
@@ -429,6 +430,27 @@ def ensure_external_content_fts(conn: sqlite3.Connection, spec: ExternalContentF
     repair_external_content_fts(conn, spec)
 
 
+def _ensure_facts_table(conn: sqlite3.Connection) -> None:
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lcm_facts (
+            fact_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope             TEXT NOT NULL DEFAULT 'global',
+            key               TEXT NOT NULL,
+            value             TEXT NOT NULL,
+            category          TEXT NOT NULL DEFAULT 'fact',
+            source_session_id TEXT,
+            created_at        REAL NOT NULL,
+            updated_at        REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_facts_scope_key
+            ON lcm_facts(scope, key);
+        CREATE INDEX IF NOT EXISTS idx_facts_category
+            ON lcm_facts(category, scope);
+        CREATE INDEX IF NOT EXISTS idx_facts_updated
+            ON lcm_facts(updated_at DESC);
+    """)
+
+
 def run_versioned_migrations(conn: sqlite3.Connection) -> None:
     ensure_metadata_table(conn)
     ensure_migration_state_table(conn)
@@ -449,5 +471,10 @@ def run_versioned_migrations(conn: sqlite3.Connection) -> None:
     if current_version < 4:
         mark_migration_step_complete(conn, "v4_lifecycle_debt_columns")
         current_version = 4
+
+    _ensure_facts_table(conn)
+    if current_version < 5:
+        mark_migration_step_complete(conn, "v5_fact_store")
+        current_version = 5
 
     set_schema_version(conn, current_version)

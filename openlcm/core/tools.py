@@ -1846,10 +1846,127 @@ def lcm_doctor(args: Dict[str, Any], **kwargs) -> str:
     })
 
 
+_LCM_FACT_VALID_CATEGORIES = frozenset({"fact", "preference", "constraint", "decision"})
+_LCM_FACT_HARD_LIMIT_CAP = 100
+
+
+def lcm_remember(args: Dict[str, Any], **kwargs) -> str:
+    """Store or update a persistent fact, preference, or constraint."""
+    engine = _require_engine(kwargs)
+    if engine is None:
+        return json.dumps({"error": "LCM engine not initialized"})
+
+    key = str(args.get("key") or "").strip()
+    if not key:
+        return json.dumps({"error": "key is required"})
+
+    value = str(args.get("value") or "").strip()
+    if not value:
+        return json.dumps({"error": "value is required"})
+
+    raw_scope = str(args.get("scope") or "global").strip()
+    scope = engine.current_session_id if raw_scope == "current" else (raw_scope or "global")
+
+    category = str(args.get("category") or "fact").strip()
+    if category not in _LCM_FACT_VALID_CATEGORIES:
+        category = "fact"
+
+    facts = getattr(engine, "_facts", None)
+    if facts is None:
+        return json.dumps({"error": "Fact store not available"})
+
+    fact_id = facts.remember(
+        key,
+        value,
+        scope=scope,
+        category=category,
+        source_session_id=engine.current_session_id,
+    )
+    return json.dumps({
+        "fact_id": fact_id,
+        "key": key,
+        "value": value,
+        "scope": scope,
+        "category": category,
+        "status": "stored",
+    })
+
+
+def lcm_recall(args: Dict[str, Any], **kwargs) -> str:
+    """Retrieve persistent facts, preferences, or constraints."""
+    engine = _require_engine(kwargs)
+    if engine is None:
+        return json.dumps({"error": "LCM engine not initialized"})
+
+    facts = getattr(engine, "_facts", None)
+    if facts is None:
+        return json.dumps({"error": "Fact store not available"})
+
+    key = str(args.get("key") or "").strip()
+    query = str(args.get("query") or "").strip()
+    raw_scope = args.get("scope")
+    category = str(args.get("category") or "").strip() or None
+    limit = _parse_positive_int(args.get("limit", 20), 20)
+    limit = min(limit, _LCM_FACT_HARD_LIMIT_CAP)
+
+    if raw_scope is None:
+        scope = None
+    elif str(raw_scope).strip() == "current":
+        scope = engine.current_session_id or "global"
+    else:
+        scope = str(raw_scope).strip() or None
+
+    if key:
+        lookup_scope = scope or "global"
+        fact = facts.recall_exact(key, scope=lookup_scope)
+        # Fall back to global scope when an explicit session scope misses
+        if fact is None and lookup_scope != "global":
+            fact = facts.recall_exact(key, scope="global")
+        if fact is None:
+            return json.dumps({"key": key, "scope": lookup_scope, "found": False, "facts": []})
+        return json.dumps({"key": key, "found": True, "facts": [fact]})
+
+    rows = facts.recall_query(query, scope=scope, category=category, limit=limit)
+    return json.dumps({
+        "query": query or None,
+        "scope": scope,
+        "category": category,
+        "limit": limit,
+        "total": len(rows),
+        "facts": rows,
+    })
+
+
+def lcm_forget(args: Dict[str, Any], **kwargs) -> str:
+    """Delete a stored fact by key and scope."""
+    engine = _require_engine(kwargs)
+    if engine is None:
+        return json.dumps({"error": "LCM engine not initialized"})
+
+    facts = getattr(engine, "_facts", None)
+    if facts is None:
+        return json.dumps({"error": "Fact store not available"})
+
+    key = str(args.get("key") or "").strip()
+    if not key:
+        return json.dumps({"error": "key is required"})
+
+    raw_scope = str(args.get("scope") or "global").strip()
+    scope = engine.current_session_id if raw_scope == "current" else (raw_scope or "global")
+
+    deleted = facts.forget(key, scope=scope)
+    return json.dumps({"key": key, "scope": scope, "deleted": deleted})
+
+
 def get_tool_schemas() -> list:
     """Return all LCM tool schemas for registration with agent frameworks."""
     from .schemas import (
         LCM_GREP, LCM_LOAD_SESSION, LCM_DESCRIBE,
         LCM_EXPAND, LCM_EXPAND_QUERY, LCM_STATUS, LCM_DOCTOR,
+        LCM_REMEMBER, LCM_RECALL, LCM_FORGET,
     )
-    return [LCM_GREP, LCM_LOAD_SESSION, LCM_DESCRIBE, LCM_EXPAND, LCM_EXPAND_QUERY, LCM_STATUS, LCM_DOCTOR]
+    return [
+        LCM_GREP, LCM_LOAD_SESSION, LCM_DESCRIBE,
+        LCM_EXPAND, LCM_EXPAND_QUERY, LCM_STATUS, LCM_DOCTOR,
+        LCM_REMEMBER, LCM_RECALL, LCM_FORGET,
+    ]

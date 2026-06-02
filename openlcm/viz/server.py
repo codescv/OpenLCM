@@ -215,6 +215,14 @@ def create_app(engine=None, bus=None):
                     } if is_active else {}),
             })
 
+        global_facts = 0
+        try:
+            facts_store = getattr(engine, "_facts", None)
+            if facts_store is not None:
+                global_facts = len(facts_store.recall_query(limit=10000))
+        except Exception:
+            pass
+
         return JSONResponse({
             "sessions": sessions_out,
             "active_session": engine._session_id,
@@ -224,6 +232,7 @@ def create_app(engine=None, bus=None):
                 "tokens_freed": global_tokens_freed,
                 "dag_nodes": global_dag_nodes,
                 "compressions": global_compressions,
+                "facts": global_facts,
             },
         })
 
@@ -352,6 +361,55 @@ def create_app(engine=None, bus=None):
         if ok:
             bus.publish("message_deleted", {"session_id": session_id, "store_id": store_id})
         return JSONResponse({"deleted": ok})
+
+    # ── Fact store ────────────────────────────────────────────────────────────
+
+    @app.get("/api/facts")
+    async def api_facts(scope: str = "", query: str = "", limit: int = 200):
+        if engine is None:
+            return JSONResponse({"facts": [], "total": 0})
+        facts_store = getattr(engine, "_facts", None)
+        if facts_store is None:
+            return JSONResponse({"facts": [], "total": 0})
+        rows = facts_store.recall_query(query, scope=scope or None, limit=min(limit, 500))
+        return JSONResponse({"facts": rows, "total": len(rows)})
+
+    @app.post("/api/facts")
+    async def api_facts_upsert(body: Dict[str, Any]):
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        facts_store = getattr(engine, "_facts", None)
+        if facts_store is None:
+            return JSONResponse({"error": "Fact store not available"}, status_code=503)
+        key = str(body.get("key") or "").strip()
+        value = str(body.get("value") or "").strip()
+        if not key or not value:
+            return JSONResponse({"error": "key and value required"}, status_code=400)
+        scope = str(body.get("scope") or "global").strip()
+        category = str(body.get("category") or "fact").strip()
+        fact_id = facts_store.remember(
+            key, value, scope=scope, category=category,
+            source_session_id=engine.current_session_id or "",
+        )
+        bus.publish("fact_stored", {"key": key, "scope": scope, "category": category})
+        return JSONResponse({"fact_id": fact_id, "key": key, "value": value, "scope": scope, "category": category})
+
+    @app.delete("/api/facts")
+    async def api_facts_delete(request: Request, body: Dict[str, Any]):
+        _require_local(request)
+        if engine is None:
+            return JSONResponse({"error": "No engine"}, status_code=503)
+        facts_store = getattr(engine, "_facts", None)
+        if facts_store is None:
+            return JSONResponse({"error": "Fact store not available"}, status_code=503)
+        key = str(body.get("key") or "").strip()
+        scope = str(body.get("scope") or "global").strip()
+        if not key:
+            return JSONResponse({"error": "key required"}, status_code=400)
+        deleted = facts_store.forget(key, scope=scope)
+        if deleted:
+            bus.publish("fact_deleted", {"key": key, "scope": scope})
+        return JSONResponse({"deleted": deleted})
 
     # ── Static files ──────────────────────────────────────────────────────────
 

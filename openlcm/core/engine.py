@@ -57,6 +57,7 @@ from .ingest_protection import (
     restore_ingest_payload_placeholders,
     sensitive_pattern_status,
 )
+from .facts import FactStore
 from .lifecycle_state import LifecycleStateStore
 from .message_content import normalize_content_value, text_content_for_pattern_matching
 from .message_patterns import compile_message_patterns, matches_message_pattern
@@ -175,6 +176,7 @@ class LCMEngine:
         self._store = MessageStore(resolved_db, ingest_protection_config=self._config)
         self._dag = SummaryDAG(resolved_db)
         self._lifecycle = LifecycleStateStore(resolved_db)
+        self._facts = FactStore(resolved_db)
 
         # Session state
         self._session_id: str = ""
@@ -1743,6 +1745,9 @@ class LCMEngine:
             "lcm_expand_query": lcm_tools.lcm_expand_query,
             "lcm_status": lcm_tools.lcm_status,
             "lcm_doctor": lcm_tools.lcm_doctor,
+            "lcm_remember": lcm_tools.lcm_remember,
+            "lcm_recall": lcm_tools.lcm_recall,
+            "lcm_forget": lcm_tools.lcm_forget,
         }
         handler = handlers.get(name)
         if handler:
