@@ -1657,7 +1657,7 @@ class LCMEngine:
         """Return identity info for lcm_status / lcm_doctor."""
         return {
             "engine": "openlcm",
-            "version": "0.1.0",
+            "version": "0.1.2",
             "session_id": self._session_id,
             "database_path": str(self._store.db_path),
         }
