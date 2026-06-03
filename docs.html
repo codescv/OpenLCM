@@ -158,6 +158,28 @@
     ::-webkit-scrollbar{width:4px;height:4px}
     ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:var(--bg-4)}
+
+    /* ── Agent Prompt Section ─────────────────────────────────────────── */
+    .agent-prompt-wrap{position:relative;margin:16px 0 24px}
+    .agent-prompt-header{display:flex;align-items:center;justify-content:space-between;background:var(--bg-3);border:1px solid var(--border-2);border-bottom:none;padding:12px 18px}
+    .aph-left{display:flex;align-items:center;gap:12px}
+    .aph-badge{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;background:var(--green-dim);color:var(--green);border:1px solid rgba(74,222,128,.3)}
+    .aph-title{font-size:12px;color:var(--fg-muted)}
+    .aph-actions{display:flex;gap:8px}
+    .aph-copy{background:var(--green);color:#0C0C0C;border:none;padding:7px 16px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+    .aph-copy:hover{opacity:.85}
+    .aph-copy.copied{background:var(--fg-dim);color:var(--fg)}
+    .agent-prompt-body{background:var(--bg-2);border:1px solid var(--border-2);padding:24px 28px;font-size:11.5px;line-height:1.85;color:var(--fg-muted);white-space:pre-wrap;word-break:break-word;max-height:520px;overflow-y:auto;tab-size:2}
+    .agent-prompt-body::-webkit-scrollbar{width:4px}
+    .agent-prompt-body::-webkit-scrollbar-thumb{background:var(--bg-4)}
+    .ap-h1{color:var(--fg);font-weight:700;font-size:13px}
+    .ap-h2{color:var(--amber);font-weight:700}
+    .ap-h3{color:var(--cyan);font-weight:600}
+    .ap-key{color:var(--green)}
+    .ap-val{color:var(--purple)}
+    .ap-cmt{color:var(--fg-dim)}
+    .ap-warn{color:var(--amber)}
+    .prompt-token-count{font-size:11px;color:var(--fg-dim);margin-top:8px}
   </style>
 </head>
 <body>
@@ -213,6 +235,11 @@
       <a href="#viz"         class="sb-link"><div class="sb-dot"></div>dashboard</a>
       <a href="#cli"         class="sb-link"><div class="sb-dot"></div>CLI reference</a>
       <a href="#api"         class="sb-link"><div class="sb-dot"></div>API reference</a>
+    </div>
+    <hr class="toc-hr" />
+    <div class="sb-group">
+      <span class="sb-group-label">for ai agents</span>
+      <a href="#agent-prompt" class="sb-link" style="color:var(--green)"><div class="sb-dot" style="background:var(--green)"></div>copy agent prompt ↗</a>
     </div>
   </aside>
 
@@ -1391,6 +1418,397 @@ openlcm expand NODE_ID [--session SESSION_ID]</div>
       </table>
     </section>
 
+    <!-- ══════════════ AGENT PROMPT ══════════════ -->
+    <section class="doc-section" id="agent-prompt">
+      <span class="sec-label">for ai agents</span>
+      <h2 class="sec-title">Copy for Your AI Agent</h2>
+      <p class="sec-lead">Paste this into your agent's system prompt or give it to any AI assistant. It contains everything needed to integrate OpenLCM — architecture, all tools, all imports, all adapters, and best practices.</p>
+
+      <div class="callout tip">
+        <strong>How to use</strong>
+        Copy the block below and paste it into your system prompt, a context file, or hand it to Claude / GPT / Gemini with the instruction: <em>"Integrate OpenLCM into my project based on this guide."</em>
+      </div>
+
+      <div class="agent-prompt-wrap">
+        <div class="agent-prompt-header">
+          <div class="aph-left">
+            <span class="aph-badge">AI Agent Prompt</span>
+            <span class="aph-title">Complete OpenLCM integration guide · copy and paste into any LLM</span>
+          </div>
+          <div class="aph-actions">
+            <button class="aph-copy" id="agent-copy-btn" onclick="copyAgentPrompt()">Copy Prompt</button>
+          </div>
+        </div>
+        <div class="agent-prompt-body" id="agent-prompt-body"><span class="ap-h1"># OpenLCM — Complete Integration Guide</span>
+
+You are being asked to integrate OpenLCM into a Python project.
+OpenLCM is a framework-agnostic Lossless Context Management SDK that gives AI agents
+permanent, searchable memory without hitting context limits.
+
+Install: pip install openlcm
+
+
+<span class="ap-h2">## ARCHITECTURE OVERVIEW</span>
+
+OpenLCM has three independent layers, all sharing one SQLite database file:
+
+<span class="ap-h3">Layer 1 — Immutable Message Store</span>
+Every message is written verbatim to SQLite with a stable store_id.
+Nothing is ever modified or deleted. FTS5-indexed for full-text search.
+The agent can call lcm_grep to search across the entire history including
+already-compressed content.
+
+<span class="ap-h3">Layer 2 — Summary DAG</span>
+When context pressure crosses a threshold, oldest messages are summarized
+into a D0 leaf node — but originals stay in the store. When enough D0 nodes
+accumulate they condense into a D1 session arc. D1s condense into D2 durable
+history. Depth is unbounded. The model always sees:
+  system + highest DAG node + recent uncondensed D0 nodes + fresh tail (last N raw messages)
+
+The agent calls lcm_expand(node_id) to recover original messages from any node.
+The agent calls lcm_expand_query(query) to synthesize an answer from compressed history.
+
+<span class="ap-h3">Layer 3 — Persistent Fact Store</span>
+A separate key-value table for standing truths that survive session boundaries:
+user preferences, project constraints, architectural decisions.
+Facts support tags, bidirectional links, and contradiction detection.
+The agent calls lcm_remember to store, lcm_recall to retrieve, lcm_forget to delete.
+lcm_link creates bidirectional causal connections between facts.
+
+
+<span class="ap-h2">## INSTALLATION</span>
+
+pip install openlcm
+
+All adapters (LangGraph, AutoGen, CrewAI, Google ADK, LlamaIndex, Haystack)
+and all provider SDKs (OpenAI, Anthropic, Gemini) are included.
+No extras needed.
+
+Optional — semantic search:
+pip install sqlite-vec
+export LCM_EMBEDDING_MODEL=openai/text-embedding-3-small
+
+
+<span class="ap-h2">## CORE SETUP (works with any framework)</span>
+
+from openlcm import LCMEngine
+from openlcm.core.config import LCMConfig
+
+config = LCMConfig.from_env()
+config.context_threshold  = 0.75    # compress at 75% of context window
+config.fresh_tail_count   = 64      # protect last 64 messages from compression
+config.leaf_chunk_tokens  = 20000   # tokens per D0 summary node
+config.condensation_fanin = 4       # D0 nodes before D1 arc is created
+
+# Optional: auto-inject relevant facts before each compression (no LLM call)
+config.auto_inject_memory = True
+config.auto_inject_top_k  = 5
+
+# Optional: auto-extract facts from each new summary node (async, non-blocking)
+config.extraction_to_facts_enabled = True
+
+# Optional: auto-pin high-salience messages so they are never compressed away
+config.auto_pin_patterns = ["constraint", "error", "correction"]
+
+engine = LCMEngine(
+    model="anthropic/claude-haiku-4-5-20251001",  # any LiteLLM model string
+    config=config,
+    db_path="~/.openlcm/myapp.db",
+)
+engine.bind_session("session-001", context_length=200_000)
+
+# Call compress() before every LLM turn
+messages = await engine.compress(messages)
+
+# Feed token usage back after each response
+engine.update_from_response({
+    "prompt_tokens": response.usage.input_tokens,
+    "completion_tokens": response.usage.output_tokens,
+})
+
+
+<span class="ap-h2">## FRAMEWORK ADAPTERS</span>
+
+<span class="ap-h3">LangGraph</span>
+from openlcm.adapters.langgraph import LCMCheckpointer
+from openlcm.adapters.langchain import LangChainMessages
+
+# Option A — drop-in for MemorySaver (recommended)
+graph = StateGraph(MyState).compile(checkpointer=LCMCheckpointer(engine))
+
+# Option B — manual compression inside a node
+lcm_msgs = LangChainMessages.to_lcm(messages)
+if engine.should_compress_preflight(lcm_msgs):
+    lcm_msgs = await engine.compress(lcm_msgs)
+    messages = LangChainMessages.from_lcm(lcm_msgs)
+
+<span class="ap-h3">Google ADK</span>
+from openlcm.adapters.google_adk import LCMSessionService, lcm_compress_callback
+
+agent = LlmAgent(
+    name="my_agent",
+    model="gemini-2.0-flash",
+    before_model_callback=lcm_compress_callback(engine),
+)
+runner = Runner(agent=agent, session_service=LCMSessionService(engine))
+
+<span class="ap-h3">AutoGen</span>
+from openlcm.adapters.autogen import LCMContext
+
+agent = AssistantAgent("assistant",
+    model_client=model_client,
+    model_context=LCMContext(engine))
+
+<span class="ap-h3">CrewAI</span>
+from openlcm.adapters.crewai import LCMStorage
+from crewai.memory import LongTermMemory
+
+crew = Crew(memory=True,
+    long_term_memory=LongTermMemory(storage=LCMStorage(engine)))
+
+<span class="ap-h3">OpenAI SDK (also works for Groq, Together, Ollama, vLLM, Azure)</span>
+from openlcm.adapters.openai import OpenAIMessages
+
+lcm = OpenAIMessages.to_lcm(messages)
+if engine.should_compress_preflight(lcm):
+    lcm = await engine.compress(lcm)
+    messages = OpenAIMessages.from_lcm(lcm)
+
+<span class="ap-h3">Anthropic SDK</span>
+from openlcm.adapters.anthropic import AnthropicMessages
+
+lcm = AnthropicMessages.to_lcm(messages, system=SYSTEM_PROMPT)
+if engine.should_compress_preflight(lcm):
+    lcm = await engine.compress(lcm)
+system_out, anthropic_msgs = AnthropicMessages.from_lcm(lcm)
+# from_lcm returns (system_str, messages) — Anthropic takes system separately
+
+<span class="ap-h3">LlamaIndex</span>
+from openlcm.adapters.llamaindex import LlamaIndexMessages
+
+lcm = LlamaIndexMessages.to_lcm(history)
+if engine.should_compress_preflight(lcm):
+    lcm = await engine.compress(lcm)
+    history[:] = LlamaIndexMessages.from_lcm(lcm)
+
+<span class="ap-h3">Haystack</span>
+from openlcm.adapters.haystack import HaystackMessages
+
+lcm = HaystackMessages.to_lcm(history)
+if engine.should_compress_preflight(lcm):
+    lcm = await engine.compress(lcm)
+    history[:] = HaystackMessages.from_lcm(lcm)
+
+<span class="ap-h3">Gemini (raw google-genai)</span>
+from openlcm.adapters.gemini import GeminiMessages
+
+lcm = GeminiMessages.to_lcm(history)
+if engine.should_compress_preflight(lcm):
+    lcm = await engine.compress(lcm)
+    _, history[:] = GeminiMessages.from_lcm(lcm)  # returns (system_str, contents)
+
+
+<span class="ap-h2">## AGENT TOOLS — ALL AVAILABLE TOOLS</span>
+
+The engine exposes these tools for agents to call.
+Include them via engine.get_tool_schemas() for your framework's tool list.
+Route tool calls to: result = await engine.handle_tool_call(tool_name, args_dict)
+
+<span class="ap-h3">lcm_remember — store a persistent fact</span>
+Parameters:
+  key        (str, required)   dot-notation key e.g. "user.timezone", "decision.database"
+  value      (str, required)   the value to store
+  category   (str, optional)   "fact" | "preference" | "constraint" | "decision"  default: "fact"
+  scope      (str, optional)   "global" (all sessions) | "current" (this session only)  default: "global"
+  tags       (list, optional)  topic strings e.g. ["auth", "backend"] — preserved on update if omitted
+  related_keys (list, optional) keys of related facts for graph linking
+
+Returns: {"status": "stored", "key": ..., "value": ..., "fact_id": ...}
+If fact existed and value changed substantially, also returns: {"updated": true, "previous_value": "..."}
+
+Best practice: call this whenever the user confirms a decision, states a constraint,
+or expresses a preference. Use dot-notation keys: decision.database, constraint.budget,
+preference.code_style, user.timezone
+
+<span class="ap-h3">lcm_recall — retrieve persistent facts</span>
+Parameters:
+  key        (str, optional)  exact key lookup
+  query      (str, optional)  LIKE search on key+value
+  category   (str, optional)  filter by category
+  scope      (str, optional)  filter by scope
+  tag        (str, optional)  filter by tag — returns all facts with this tag
+  related_to (str, optional)  traverse fact graph — returns facts linked to this key
+
+Returns: list of matching facts with all fields
+
+Best practice: call lcm_recall() with no args at the start of every new session
+to re-load preferences and constraints. Call lcm_recall(category="constraint") before
+any tool call that modifies state.
+
+<span class="ap-h3">lcm_forget — delete a fact</span>
+Parameters:
+  key   (str, required)
+  scope (str, optional) default: "global"
+
+Returns: {"deleted": true|false, "key": ...}
+
+<span class="ap-h3">lcm_link — bidirectionally link two facts</span>
+Parameters:
+  key1  (str, required)
+  key2  (str, required)
+  scope (str, optional) default: "global"
+
+Returns: {"linked": true|false, "key1": ..., "key2": ...}
+Creates key2 in key1.related_keys and key1 in key2.related_keys.
+Use to capture causal chains: link decision.database to constraint.no_external_db
+
+<span class="ap-h3">lcm_grep — full-text search across message history</span>
+Parameters:
+  query      (str, required)  FTS5 search term
+  session_id (str, optional)  limit to a session
+  limit      (int, optional)  default 20
+
+Returns: list of matching messages with store_id, role, content snippet, token_estimate
+
+<span class="ap-h3">lcm_expand — recover original messages from a DAG node</span>
+Parameters:
+  node_id    (int, required)
+  max_tokens (int, optional) default 4000
+
+Returns: full text of original messages that were compressed into this node
+
+<span class="ap-h3">lcm_expand_query — synthesize answer from compressed history</span>
+Parameters:
+  query      (str, required)  what to look for
+  session_id (str, optional)
+  max_tokens (int, optional) default 4000
+
+Returns: synthesized answer drawing from DAG nodes that match the query
+
+<span class="ap-h3">lcm_semantic_search — vector similarity search (requires LCM_EMBEDDING_MODEL)</span>
+Parameters:
+  query        (str, required)
+  limit        (int, optional) default 10
+  content_type (str, optional) "node" | "fact" | "all"  default: "all"
+
+Returns: cosine-ranked hits enriched with summary text or fact values.
+If LCM_EMBEDDING_MODEL is not set, returns a hint to use lcm_grep instead.
+
+
+<span class="ap-h2">## ENVIRONMENT VARIABLES</span>
+
+<span class="ap-key">LCM_CONTEXT_THRESHOLD</span>       float   0.75   Compression trigger as fraction of context window
+<span class="ap-key">LCM_FRESH_TAIL_COUNT</span>         int     64     Messages protected from compression at tail
+<span class="ap-key">LCM_LEAF_CHUNK_TOKENS</span>        int     20000  Tokens per D0 leaf summary node
+<span class="ap-key">LCM_CONDENSATION_FANIN</span>       int     4      D0 nodes before D1 arc is created
+<span class="ap-key">LCM_DB_PATH</span>                  str     ~/.openlcm/lcm.db  SQLite database path
+<span class="ap-key">LCM_AUTO_INJECT_MEMORY</span>       bool    false  Auto-inject relevant facts before each compression
+<span class="ap-key">LCM_AUTO_INJECT_TOP_K</span>        int     5      Max facts injected per compression call
+<span class="ap-key">LCM_EXTRACTION_TO_FACTS_ENABLED</span> bool false  Auto-extract facts from each D0 summary node
+<span class="ap-key">LCM_AUTO_PIN_PATTERNS</span>        str     ""     Pattern groups: constraint,error,correction
+<span class="ap-key">LCM_EMBEDDING_MODEL</span>          str     ""     LiteLLM model for embeddings (enables lcm_semantic_search)
+
+
+<span class="ap-h2">## SYSTEM PROMPT BEST PRACTICES</span>
+
+Add the following instructions to your agent's system prompt:
+
+---
+At the start of every session, call lcm_recall() to load all persistent facts,
+preferences, and constraints. Never ask the user to repeat information that
+may already be stored.
+
+Whenever the user confirms a decision, states a hard constraint, or expresses
+a preference — immediately call lcm_remember with the appropriate category.
+Use dot-notation keys: decision.database, constraint.no_prod_push, preference.language.
+
+Before any tool call that modifies state (writes to DB, deploys, sends messages),
+call lcm_recall(category="constraint") to check for standing constraints.
+
+When two decisions are causally related, call lcm_link to connect them.
+Add topic tags to every stored fact for easier retrieval.
+
+If you need to recall something from earlier in this conversation that may have
+been compressed, call lcm_grep with a keyword or lcm_expand with the node ID
+shown in the summary header. Never guess at something that can be looked up.
+---
+
+
+<span class="ap-h2">## FACT STORE BEST PRACTICES</span>
+
+Key naming convention:
+  decision.&lt;topic&gt;       e.g. decision.database, decision.auth, decision.deployment
+  constraint.&lt;topic&gt;    e.g. constraint.budget, constraint.cloud, constraint.team_size
+  preference.&lt;topic&gt;    e.g. preference.language, preference.test_framework
+  user.&lt;topic&gt;          e.g. user.timezone, user.name, user.communication_style
+  project.&lt;topic&gt;       e.g. project.name, project.stack, project.deadline
+
+Tags group facts by domain — use consistently:
+  ["backend"], ["frontend"], ["auth"], ["infra"], ["database"], ["testing"], ["deployment"]
+
+Scope:
+  "global"  — visible to every future session (use for most facts)
+  "current" — private to this session (use for temporary working state)
+
+Contradiction handling:
+  When lcm_remember returns "updated": true with a "previous_value", surface this
+  to the user before overwriting — they may be making an unintended change.
+
+
+<span class="ap-h2">## LIVE DASHBOARD</span>
+
+import threading
+from openlcm.viz.server import create_app, serve as viz_serve
+
+def _start_viz():
+    app = create_app(engine)
+    viz_serve(app, host="127.0.0.1", port=7842, open_browser=True)
+
+threading.Thread(target=_start_viz, daemon=True).start()
+# Opens http://localhost:7842 — shows token pressure, DAG, message store, fact store
+
+Or from CLI:
+  openlcm viz                        # http://localhost:7842
+  openlcm viz --port 8080
+  openlcm viz --db ~/.openlcm/app.db
+
+
+<span class="ap-h2">## INTERNAL MESSAGE FORMAT</span>
+
+All converters normalize to this format. Tool calls are JSON in the content string.
+
+Plain message:
+  {"role": "user" | "assistant" | "system", "content": "string"}
+
+Assistant with tool calls:
+  {"role": "assistant", "content": "{\"text\": \"...\", \"tool_calls\": [{\"id\": \"tc_1\", \"name\": \"get_weather\", \"args\": {\"city\": \"Tokyo\"}, \"type\": \"function\"}]}"}
+
+Tool result:
+  {"role": "tool", "content": "{\"temp_c\": 22}", "tool_call_id": "tc_1", "name": "get_weather"}
+
+
+<span class="ap-h2">## MINIMAL WORKING EXAMPLE</span>
+
+import asyncio
+from openlcm import LCMEngine
+
+engine = LCMEngine(model="anthropic/claude-haiku-4-5-20251001", db_path="~/.openlcm/app.db")
+engine.bind_session("session-001", context_length=200_000)
+
+async def agent_turn(messages: list[dict], user_input: str) -> tuple:
+    messages.append({"role": "user", "content": user_input})
+    messages = await engine.compress(messages)   # no-op until threshold crossed
+    response = await my_llm.chat(messages)
+    messages.append(response)
+    engine.update_from_response(response.usage)
+    return response.content, messages
+
+asyncio.run(agent_turn([], "Hello!"))</div>
+        <div class="prompt-token-count" id="prompt-token-count"></div>
+      </div>
+
+    </section>
+
   </main>
 </div>
 
@@ -1435,6 +1853,37 @@ function copyCmd(cmdId, btn) {
     setTimeout(() => { btn.textContent = 'copy'; }, 2000);
   });
 }
+
+// ── Agent Prompt copy ─────────────────────────────────────────────────────
+function copyAgentPrompt() {
+  const el  = document.getElementById('agent-prompt-body');
+  const btn = document.getElementById('agent-copy-btn');
+  if (!el || !btn) return;
+  const text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy Prompt'; btn.classList.remove('copied'); }, 2500);
+  }).catch(() => {
+    const r = document.createRange();
+    r.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(r);
+    document.execCommand('copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy Prompt'; }, 2500);
+  });
+}
+
+// Show approximate token count for the prompt
+(function() {
+  const el = document.getElementById('agent-prompt-body');
+  const ct = document.getElementById('prompt-token-count');
+  if (!el || !ct) return;
+  const chars = (el.innerText || el.textContent).length;
+  const approx = Math.round(chars / 4);
+  ct.textContent = `≈ ${approx.toLocaleString()} tokens — safe for any 32K+ context window`;
+})();
 
 // Scroll progress bar
 const prog = document.getElementById('scroll-prog');
