@@ -332,7 +332,27 @@ class SummaryDAG:
         ).fetchall()
         return [self._row_to_node(r) for r in rows]
 
+    def get_active_nodes(self, session_id: str, limit: int = 1000) -> List[SummaryNode]:
+        """Get all active (uncondensed) nodes for a session.
+
+        An active node is one that is not referenced as a source by any node in
+        the same session.
+        """
+        rows = self._conn.execute(
+            """SELECT n.* FROM summary_nodes n
+               WHERE n.session_id = ?
+               AND n.node_id NOT IN (
+                   SELECT json_each.value FROM summary_nodes p,
+                   json_each(p.source_ids)
+                   WHERE p.session_id = ? AND p.source_type = 'nodes'
+               )
+               ORDER BY n.depth, n.created_at LIMIT ?""",
+            (session_id, session_id, limit),
+        ).fetchall()
+        return [self._row_to_node(r) for r in rows]
+
     # -- Search -------------------------------------------------------------
+
 
     def search(self, query: str, session_id: str | None = None,
                limit: int = 20, sort: str | None = None,

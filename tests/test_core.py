@@ -239,11 +239,48 @@ async def test_dag_summary_content(engine, backend):
         assert node.token_count > 0
 
 
+@pytest.mark.asyncio
+async def test_get_active_nodes(engine, backend):
+    engine.bind_session("active-nodes-test")
+    engine._config.condensation_fanin = 2
+    engine._config.fresh_tail_count = 2
+
+    # Step 1
+    msgs1 = [{"role": "system", "content": "You are helpful."}] + make_messages(6)
+    engine._ingest_messages(msgs1)
+    await engine.compress(msgs1)
+
+    # Step 2
+    msgs2 = msgs1 + make_messages(6)
+    engine._ingest_messages(msgs2)
+    await engine.compress(msgs2)
+
+    # Step 3
+    msgs3 = msgs2 + make_messages(6)
+    engine._ingest_messages(msgs3)
+    await engine.compress(msgs3)
+
+    all_nodes = engine._dag.get_session_nodes("active-nodes-test")
+    active_nodes = engine._dag.get_active_nodes("active-nodes-test")
+
+    assert len(all_nodes) > len(active_nodes)
+
+    source_ids = set()
+    for n in all_nodes:
+        if n.source_type == "nodes":
+            source_ids.update(n.source_ids)
+
+    for act in active_nodes:
+        assert act.node_id not in source_ids
+
+
+
 # ── Tests: Tools ──────────────────────────────────────────────────────────
+
 
 def test_get_tool_schemas(engine):
     schemas = engine.get_tool_schemas()
-    assert len(schemas) == 7
+    assert len(schemas) == 12
     names = {s["name"] for s in schemas}
     assert "lcm_grep" in names
     assert "lcm_expand" in names

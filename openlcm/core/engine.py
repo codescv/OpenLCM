@@ -1513,7 +1513,7 @@ class LCMEngine:
         # Determine effective assembly cap
         cap = assembly_cap_override if assembly_cap_override is not None else self._effective_assembly_token_cap()
 
-        dag_nodes = self._dag.get_session_nodes(session_id)
+        dag_nodes = self._dag.get_active_nodes(session_id)
 
         if not dag_nodes:
             result: list[Dict[str, Any]] = []
