@@ -1621,7 +1621,7 @@ class LCMEngine:
             try:
                 tail_rows = self._store.get_session_tail(self._session_id, limit=cursor)
                 for i, row in enumerate(tail_rows):
-                    idx = cursor - 1 - i
+                    idx = cursor - len(tail_rows) + i
                     if 0 <= idx < n:
                         messages[idx]["_lcm_store_id"] = row.get("store_id")
             except Exception as exc:
