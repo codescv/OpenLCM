@@ -195,13 +195,15 @@ def _build_l1_prompt(text: str, token_budget: int, depth: int,
     focus_guidance = _build_l1_focus_brief(focus_topic)
     custom_block = f"\nAdditional instructions:\n{custom_instructions}\n" if custom_instructions else ""
     return (
-        f"Summarize this conversation segment for future turns.\n"
-        f"{guidance}\n"
-        f"Remove repetition and conversational filler.\n"
-        f"End with: \"Expand for details about: <what was compressed>\"\n"
-        f"{focus_guidance}{custom_block}\n"
-        f"Target ~{token_budget} tokens.\n\n"
-        f"CONTENT:\n{text}"
+        f"You are a summarizer assistant. Below is a conversation segment wrapped in <content> tags:\n\n"
+        f"<content>\n{text}\n</content>\n\n"
+        f"Please summarize the above conversation segment for future turns.\n"
+        f"Instructions:\n"
+        f"- {guidance}\n"
+        f"- Remove repetition and conversational filler.\n"
+        f"- Target ~{token_budget} tokens.\n"
+        f"- End the summary with: \"Expand for details about: <what was compressed>\"\n"
+        f"{focus_guidance}{custom_block}"
     )
 
 
@@ -210,11 +212,13 @@ def _build_l2_prompt(text: str, token_budget: int,
     focus_guidance = _build_l2_focus_brief(focus_topic)
     custom_block = f"\nAdditional instructions:\n{custom_instructions}\n" if custom_instructions else ""
     return (
-        f"Compress this into bullet points. Maximum {token_budget} tokens.\n"
-        f"Keep only: decisions made, files changed, errors hit, current state.\n"
-        f"Drop all reasoning, alternatives considered, and process detail.\n"
-        f"{focus_guidance}{custom_block}\n\n"
-        f"CONTENT:\n{text}"
+        f"Below is a conversation segment wrapped in <content> tags:\n\n"
+        f"<content>\n{text}\n</content>\n\n"
+        f"Please compress the above content into bullet points. Maximum {token_budget} tokens.\n"
+        f"Instructions:\n"
+        f"- Keep only: decisions made, files changed, errors hit, current state.\n"
+        f"- Drop all reasoning, alternatives considered, and process detail.\n"
+        f"{focus_guidance}{custom_block}"
     )
 
 
