@@ -1617,6 +1617,16 @@ class LCMEngine:
                 logger.debug("LCM cursor reconciliation failed: %s", exc)
             self._ingest_cursor_needs_reconcile = False
 
+        if cursor > 0 and self._session_id:
+            try:
+                tail_rows = self._store.get_session_tail(self._session_id, limit=cursor)
+                for i, row in enumerate(tail_rows):
+                    idx = cursor - 1 - i
+                    if 0 <= idx < n:
+                        messages[idx]["_lcm_store_id"] = row.get("store_id")
+            except Exception as exc:
+                logger.debug("LCM mapping existing messages failed: %s", exc)
+
         replay_messages = list(messages)
         new_messages = messages[cursor:]
         if not new_messages:
@@ -1637,6 +1647,8 @@ class LCMEngine:
                     msg,
                     token_estimate=count_message_tokens(msg),
                 )
+                if store_id:
+                    msg["_lcm_store_id"] = store_id
                 self._emit("message_ingested", {
                     "store_id": store_id,
                     "role": msg.get("role", "unknown"),
@@ -1663,9 +1675,21 @@ class LCMEngine:
         """Map a slice of messages to their store_ids."""
         if not self._session_id:
             return []
+        
+        # Prefer direct _lcm_store_id mapping if available
+        result_ids: list[int] = []
+        for msg in messages:
+            sid = msg.get("_lcm_store_id")
+            if sid is not None:
+                result_ids.append(int(sid))
+                
+        if len(result_ids) == len(messages):
+            return result_ids
+
+        # Fallback to heuristic prefix matching
+        result_ids = []
         try:
             tail = self._store.get_session_tail(self._session_id, limit=len(messages) * 2 + 10)
-            result_ids: list[int] = []
             for msg in messages:
                 role = msg.get("role", "")
                 content = normalize_content_value(msg.get("content")) or ""
